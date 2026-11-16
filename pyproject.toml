@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dari-research"
+version = "0.2.0"
+description = "Budgeted local assistance with receiver-conditioned control"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["torch>=2.3,<3"]
+
+[project.optional-dependencies]
+models = ["transformers>=4.51,<5", "peft>=0.17,<1", "accelerate>=1,<2", "safetensors>=0.4"]
+qlora = ["bitsandbytes>=0.43,<1"]
+
+[project.scripts]
+dari-demo = "dari.demo:main"
+dari-train-controller = "dari.train_controller:main"
+dari-train-specialist = "dari.train_specialist:main"
+dari-run = "dari.run:main"
+dari-collect = "dari.collect:main"
+dari-alternate = "dari.alternate:main"
+
+[tool.setuptools]
+packages = ["dari"]
+
+[tool.setuptools.package-data]
+dari = ["defaults.json"]
