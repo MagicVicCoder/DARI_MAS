@@ -100,6 +100,8 @@ def anchor_input(state: "EpisodeState", instruction: str, temporary_help: tuple[
         record = asdict(step.record)
         if record["help_request"] is not None:
             record["help_request"] = {key: record["help_request"][key] for key in ("instruction", "target", "required_refs")}
+        if not state.generate_help_request:
+            record.pop("help_request")
         history.append({"id": step.step_id, **record})
     body = {"task": state.task.question, "sources": state.task.sources,
             "steps": history,
@@ -108,8 +110,13 @@ def anchor_input(state: "EpisodeState", instruction: str, temporary_help: tuple[
         body["temporary_help"] = {temporary_help[0]: temporary_help[1]}
     rule = ("Return one JSON object: step (new reasoning text), refs (at most 4 existing IDs), "
             "goal (active subgoal or null), answer (complete answer as a JSON string or null, never a number or boolean), "
-            "help_request (null or {instruction: an open-ended local task, target: current_step or an existing ID, required_refs: existing IDs}), "
+            + ("help_request (null or {instruction: an open-ended local task, target: current_step or an existing ID, required_refs: existing IDs}), " if state.generate_help_request else "") +
             "invalidate_answer (boolean; true revokes an obsolete candidate before applying answer). "
+            "Make substantive new progress each step; do not merely restate plans or repeat calculations. "
+            "When solved, set answer to the concise final result, not an explanation; use standard LaTeX for mathematical expressions. "
+            "The answer string must contain the final value itself, not a JSON object or an encoded JSON document. "
+            "If unfinished, solve a concrete part now. Use only existing source IDs. "
+            + ("Request help only for a genuinely unresolved task; do not repeat an already completed request. " if state.generate_help_request else "") +
             "External help is fallible. Reference its ID only if retaining its evidence. ")
     tracked = {("task",): "task", ("candidate",): "candidate"}
     tracked.update({("sources", key): key for key in state.task.sources})

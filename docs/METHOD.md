@@ -56,3 +56,30 @@ can set equal output caps but still require measured repeated-input/resource cos
 Limits and exhaustion terminate with explicit reasons. One Anchor formatting retry
 is billed. Forced policies cover paths but cannot establish trained-policy quality.
 There are no claims of convergence, efficiency or benchmark accuracy.
+
+## Phase 2A controlled exploratory comparisons
+
+`generate_help_request=false` removes request generation and request fields from
+Anchor history prompts while retaining the same Runtime/parser for stepwise CoT.
+The default remains true. Structured prompts explicitly request substantive new
+progress and concise final answers. This protocol adjustment applies uniformly
+to stepwise/DARI conditions; Standard CoT uses the same task/sources and asks for
+a final answer marker. All prompts and identities are archived before execution.
+
+The exploratory runner chooses the first valid unfinished checkpoint supporting
+all comparisons, before observing branch outcomes. No candidate means Finish is
+unavailable. First-step completed tasks have no E1 prefix. Saved state hashes,
+deep copies and post-branch integrity checks protect same-prefix comparisons.
+
+Continue and SelfRepair each have one initial Anchor step; SelfRepair-Extended
+has a local-task step and a refinement/integration step with the SAME original
+request; Help-Submit has one Specialist stage and one Anchor integration call.
+Each output cap is 512 in the initial config. Missing/invalid Draft invokes Abort
+and its actual Anchor continuation without dropping the failed branch. After
+intervention, every condition receives at most eight additional valid Anchor
+steps and finishes as soon as a candidate exists. Absolute max-step counts are
+adjusted per intervention so extra internal steps do not reduce common opportunity.
+
+Same-prefix scores report raw terminal reward and actual resources separately;
+uncalibrated costs are not promoted to formal Controller/DPO labels. Local Oracle
+is a finite-rollout, post-hoc exploratory upper envelope, not deployable behavior.

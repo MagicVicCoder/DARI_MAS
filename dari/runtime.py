@@ -33,6 +33,7 @@ class RuntimeConfig:
     wide_history: int = 4
     controller_history: int = 8
     experiment_mode: str = "synthetic"
+    generate_help_request: bool = True
 
     def __post_init__(self):
         if self.experiment_mode not in {"synthetic", "real_debug", "formal"}:
@@ -66,6 +67,7 @@ class EpisodeState:
     help_count: int = 0
     help_request: HelpRequest | None = None
     wide_history: int = 4
+    generate_help_request: bool = True
     decision_log: list[dict] = field(default_factory=list)
     assistance_log: list[dict] = field(default_factory=list)
     terminal: bool = False
@@ -104,7 +106,8 @@ class Runtime:
     def initial(self, task: Task, seed: int = 0) -> EpisodeState:
         if any(k == "task" or k.startswith(("s", "g", "h")) and k[1:].isdigit() for k in task.sources):
             raise ValueError("Source IDs conflict with reserved task/step/goal/help IDs")
-        state = EpisodeState(task, CostLedger(self.profiles), self.config.budget, seed=seed, wide_history=self.config.wide_history)
+        state = EpisodeState(task, CostLedger(self.profiles), self.config.budget, seed=seed,
+                             wide_history=self.config.wide_history, generate_help_request=self.config.generate_help_request)
         if self.config.experiment_mode == "real_debug":
             state.ledger.unmeasured_overheads.append("uncalibrated_debug_resource_cost")
         self._anchor(state, CONTINUE_INSTRUCTION)
