@@ -92,3 +92,31 @@ class PilotTests(unittest.TestCase):
         report=local_oracle(groups)
         self.assertEqual(report[0]["local_oracle"],1.)
         self.assertEqual(report[0]["oracle_gap"],0.)
+
+    def test_resume_rejects_incompatible_manifest_before_loading_models(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/"samples.jsonl").write_text("")
+            (root/"manifest.json").write_text(json.dumps({"experiment_id":"incompatible"}))
+            config=root/"config.json"
+            config.write_text(json.dumps({"output_dir":str(root),"sample_file":str(root/"samples.jsonl")}))
+            with self.assertRaisesRegex(ValueError,"Resume rejected"):
+                Experiment(config)
+
+    def test_saved_prefix_roundtrip_contains_no_offline_labels(self):
+        import torch
+        runtime=make_runtime(anchor_outputs=[anchor(answer=None)])
+        state=runtime.initial(fixtures.RuntimeTests().task())
+        with tempfile.TemporaryDirectory() as directory:
+            experiment=Experiment.__new__(Experiment)
+            experiment.root=Path(directory)
+            experiment.runtime=runtime
+            experiment.backend=runtime.backend
+            experiment.dimensions={"anchor_dim":12,"specialist_dim":9}
+            experiment.identity="fixture"
+            prefix_id=experiment.save_prefix(state,{"task_id":state.task.task_id,"gold":"OFFLINE_SECRET"})
+            path=Path(directory)/"e1/prefixes"/(prefix_id+".pt")
+            restored=torch.load(path,weights_only=False)
+            self.assertEqual(state_id(restored),prefix_id)
+            self.assertNotIn("OFFLINE_SECRET",path.with_suffix(".json").read_text())
+            self.assertFalse(hasattr(restored.task,"gold"))
