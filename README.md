@@ -103,7 +103,11 @@ the intervention. This is approximate configured output-budget matching, not equ
 measured GPU cost. Labels are exploratory scores, never formal utility labels.
 
 ```bash
-# Data preparation requires the three source files listed in pilot_data.py.
+# Reuse existing sources first; these fetch only missing local files.
+mkdir -p data/phase2a
+test -f data/phase2a/gsm8k.jsonl || curl -fL https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/test.jsonl -o data/phase2a/gsm8k.jsonl
+test -f data/phase2a/math500.jsonl || curl -fL https://hf-mirror.com/datasets/HuggingFaceH4/MATH-500/resolve/main/test.jsonl -o data/phase2a/math500.jsonl
+test -f data/phase2a/hotpot_validation.parquet || curl -fL https://hf-mirror.com/datasets/hotpotqa/hotpot_qa/resolve/main/distractor/validation-00000-of-00001.parquet -o data/phase2a/hotpot_validation.parquet
 .venv/bin/python -m dari.pilot_data
 # Recheck GPU availability; A/S use independent instances on these two devices.
 CUDA_VISIBLE_DEVICES=0,2 .venv/bin/python -m dari.pilot --stage pilot

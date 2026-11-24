@@ -5,6 +5,7 @@ import csv
 import json
 from pathlib import Path
 import statistics
+import subprocess
 
 from .pilot import METHODS, BRANCHES, read_rows
 
@@ -217,6 +218,8 @@ def analyze(root):
 ## 配置与可复现性
 
 基础 commit `{manifest['git_commit']}`；实验身份 `{manifest['experiment_id']}`。
+本地代码归档HEAD：`{subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()}`；
+实验启动时部分新增代码尚未提交，因此以manifest中的逐文件代码哈希为准。
 完整配置、代码哈希、数据指纹和模型身份在 manifest.json、model_manifest.json 和
 data_manifest.json。60个预选开发样本，每数据集前8个为Pilot，20个为扩展目标；
 选样固定种子20261124，MATH按题型/难度轮转，其他数据集随机无放回。
@@ -228,6 +231,17 @@ HotpotQA为distractor validation，所有10篇原文进入Anchor，supporting fa
 不传模型。GSM用有理数规范化，MATH用math-verify 0.8.0，Hotpot标准化EM/token F1，
 yes/no/noanswer采用特殊规则。无法可靠解析的答案列在evaluator_review.csv，未擅自人工改分。
 当前该类待复核数量：{len(uncertainty)}。没有引入LLM Judge。
+初始Pilot发现单值JSON包装（如字符串内的total_pets对象）导致数值答案不能被识别。
+随后统一为全部条件加入单值包装解开规则，并明确最终值prompt，所有受影响Pilot
+重新生成。修正前结果/配置在diagnostics/evaluator_wrapper_pilot，不与主结果混用。
+一次Runner维度读取异常在diagnostics/setup_failure，未伪装为推理失败。
+第二次Pilot发现模型照抄历史id导致严格字段校验失败，并出现中间结果过早设为答案。
+统一明确禁止生成Runtime id、只在原题完整完成时作答，并在有限格式重试里提供错误原因；
+全部受影响样本重新生成。第二次修复前证据在diagnostics/schema_id_pilot。
+此外最终数值答案可能是未化简算式（例如400-355）。统一GSM评分器支持受限有理数
+四则运算/小整数幂，不从长推理文本随意挑数字；所有条件再次使用最终规则运行。
+此评分修复前记录在diagnostics/arithmetic_evaluator_pilot，不与主结果混合。
+初始模型曾分卡；最终主实验采用独立两卡实例，物理卡映射见execution.json和日志。
 
 ## E0
 
@@ -295,6 +309,7 @@ cost_complete=false，不用于正式Cost Head/DPO训练。
 不能把全部负例归因于未训练，也不能从少量正例断言协作有效。平均收益、状态差异和
 原始案例共同决定后续是否值得训练；不要直接开始大规模SFT/DPO或增加Agent。
 当前math evaluator的解析限制、少量rollout与共享服务器时延变化均限制结论。
+墙钟计时含Runtime及部分审计记录开销，模型加载不计入，未独立校准prefill/decode时间。
 优先检查待复核答案、重复请求和未提交Draft，再做协议训练/动作选择研究设计。
 
 ## 代码与维护

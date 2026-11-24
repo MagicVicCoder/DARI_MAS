@@ -19,6 +19,10 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(score("gsm8k", "FINAL: 0.5", "1/2")["reward"], 1)
         self.assertEqual(score("gsm8k", '{"total_pets": 28}', "28")["reward"], 1)
         self.assertEqual(score("gsm8k", "40 minutes", "40")["reward"], 1)
+        self.assertEqual(score("gsm8k", "400 - 355", "45")["reward"], 1)
+        self.assertEqual(score("gsm8k", "(4+1)/2", "2.5")["reward"], 1)
+        self.assertIsNone(numeric("1 or 2"))
+        self.assertIsNone(numeric("__import__('os')"))
         self.assertEqual(score("gsm8k", '{"a": 28, "b": 3}', "28")["reward"], 0)
         self.assertEqual(score("hotpotqa", "The River", "river")["reward"], 1)
         self.assertEqual(score("hotpotqa", "no, yes", "yes")["f1"], 0)
@@ -36,6 +40,13 @@ class PilotTests(unittest.TestCase):
         packet=anchor_input(state,"Continue")
         self.assertNotIn("help_request",packet.text)
         self.assertEqual(len(state.steps),1)
+
+    def test_format_retry_reports_specific_error_without_relaxing_schema(self):
+        runtime=make_runtime(anchor_outputs=[anchor(refs=["invented"]),anchor(refs=["p1"])])
+        state=runtime.initial(fixtures.RuntimeTests().task())
+        self.assertEqual(state.calls["anchor"],2)
+        self.assertIn("Unknown Anchor reference",state.events[-1].prompt)
+        self.assertNotIn("invented",state.steps[0].record.refs)
 
     def test_counterfactual_branches_keep_prefix_and_equal_common_step_allowance(self):
         outputs=[anchor(answer=None)]+[anchor(step="new work",answer="1",goal=None)]*20

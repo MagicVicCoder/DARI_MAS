@@ -4,8 +4,9 @@ from fractions import Fraction
 import re
 import string
 import json
+import ast
 
-EVALUATOR_VERSION = "phase2a-eval-v2-single-value-wrapper"
+EVALUATOR_VERSION = "phase2a-eval-v3-rational-arithmetic"
 
 
 def final_answer(text):
@@ -45,14 +46,30 @@ def numeric(text):
         return None
     text = text.replace(",", "").replace("−", "-").replace("\\,", "").strip().strip("$. ")
     text = re.sub(r"\\(?:dfrac|tfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}", r"(\1)/(\2)", text)
-    text = text.replace("(", "").replace(")", "")
-    match = re.fullmatch(r"([-+]?\d+(?:\.\d+)?(?:\s*/\s*[-+]?\d+(?:\.\d+)?)?)(?:\s*(?:[A-Za-z][A-Za-z\s-]*|%))?", text)
+    text = re.sub(r"\\text\{([^{}]*)\}", r"\1", text)
+    match = re.fullmatch(r"([\d.\s+*/()^\-]+)(?:\s*(?:[A-Za-z][A-Za-z\s-]*|%))?", text)
     if not match:
         return None
     try:
-        parts = match[1].split("/")
-        return Fraction(parts[0].strip()) / (Fraction(parts[1].strip()) if len(parts) == 2 else 1)
-    except (ValueError, ZeroDivisionError):
+        expression=match[1].strip().replace("^","**")
+        if len(expression)>256:
+            return None
+        def visit(node):
+            if isinstance(node,ast.Constant) and type(node.value) in (int,float):
+                return Fraction(ast.get_source_segment(expression,node))
+            if isinstance(node,ast.UnaryOp) and isinstance(node.op,(ast.UAdd,ast.USub)):
+                value=visit(node.operand)
+                return value if isinstance(node.op,ast.UAdd) else -value
+            if isinstance(node,ast.BinOp):
+                left,right=visit(node.left),visit(node.right)
+                if isinstance(node.op,ast.Add): return left+right
+                if isinstance(node.op,ast.Sub): return left-right
+                if isinstance(node.op,ast.Mult): return left*right
+                if isinstance(node.op,ast.Div): return left/right
+                if isinstance(node.op,ast.Pow) and right.denominator==1 and abs(right)<=12: return left**int(right)
+            raise ValueError("Not a bounded rational arithmetic expression")
+        return visit(ast.parse(expression,mode="eval").body)
+    except (ValueError, ZeroDivisionError, SyntaxError, OverflowError):
         return None
 
 

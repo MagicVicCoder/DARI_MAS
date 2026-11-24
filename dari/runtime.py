@@ -239,8 +239,10 @@ class Runtime:
 
     def _anchor(self, state: EpisodeState, instruction: str,
                 payload: tuple[str, str] | None = None, payload_feature: Feature | None = None) -> None:
+        last_error = None
         for attempt in range(2):
-            packet = anchor_input(state, instruction + (" Output a shorter valid JSON record." if attempt else ""), payload)
+            correction = (" Previous output was invalid: " + last_error + ". Return a complete valid JSON record with exactly the specified fields." if last_error else "")
+            packet = anchor_input(state, instruction + correction, payload)
             prompt = packet.text
             if len(state.steps) >= self.config.max_anchor_steps:
                 self._terminate(state, "step_limit")
@@ -276,6 +278,7 @@ class Runtime:
                         raise ValueError("Unknown assistance target or required reference")
                     record = replace(record, help_request=replace(req, target=target))
             except ValueError as exc:
+                last_error = str(exc)
                 state.events.append(CallEvent("anchor", prompt, generation.text, False, str(exc), asdict(generation.usage), generation.latency_ms, generation.raw_text))
                 continue
             refs = list(dict.fromkeys(record.refs))

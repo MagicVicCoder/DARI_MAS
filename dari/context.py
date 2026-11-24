@@ -115,6 +115,9 @@ def anchor_input(state: "EpisodeState", instruction: str, temporary_help: tuple[
             "Make substantive new progress each step; do not merely restate plans or repeat calculations. "
             "When solved, set answer to the concise final result, not an explanation; use standard LaTeX for mathematical expressions. "
             "The answer string must contain the final value itself, not a JSON object or an encoded JSON document. "
+            "Set answer ONLY when the ORIGINAL QUESTION is fully solved; intermediate results belong in step with answer=null. "
+            "Do not emit id or any other extra fields: history IDs are assigned by Runtime, not by you. "
+            "Use refs=[] if citing no provided ID; never invent numeric references such as '1'. "
             "If unfinished, solve a concrete part now. Use only existing source IDs. "
             + ("Request help only for a genuinely unresolved task; do not repeat an already completed request. " if state.generate_help_request else "") +
             "External help is fallible. Reference its ID only if retaining its evidence. ")
