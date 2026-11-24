@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import statistics
 import subprocess
+from copy import deepcopy
 
 from .pilot import METHODS, BRANCHES, read_rows
 
@@ -79,6 +80,16 @@ def local_oracle(groups):
     return output
 
 
+def deep_review_groups(groups, reviewed):
+    result=deepcopy(groups)
+    lookup={(row["task_id"],row["method"]):row["manual_reward"] for row in reviewed}
+    for group in result.values():
+        for method,row in group.items():
+            if (row["task_id"],method) in lookup:
+                row["reward"]=lookup[(row["task_id"],method)]
+    return result
+
+
 def markdown(rows,columns):
     if not rows:
         return "尚无完整结果。\n"
@@ -126,6 +137,10 @@ def analyze(root):
     write_csv(root/"e1/summary.csv",e1summary)
     oracle=local_oracle(groups)
     write_csv(root/"e1/oracle.csv",oracle)
+    reviewed=read_rows(root/"evaluator_manual_review.jsonl")
+    sensitivity=deep_review_groups(groups,reviewed)
+    if reviewed:
+        write_csv(root/"e1/manual_review_oracle_sensitivity.csv",local_oracle(sensitivity))
     paired=[]
     for dataset in ("all","gsm8k","math500","hotpotqa"):
         selected=[group for group in groups.values() if dataset=="all" or group["continue"]["dataset"]==dataset]
@@ -231,6 +246,9 @@ HotpotQA为distractor validation，所有10篇原文进入Anchor，supporting fa
 不传模型。GSM用有理数规范化，MATH用math-verify 0.8.0，Hotpot标准化EM/token F1，
 yes/no/noanswer采用特殊规则。无法可靠解析的答案列在evaluator_review.csv，未擅自人工改分。
 当前该类待复核数量：{len(uncertainty)}。没有引入LLM Judge。
+人工可检查复核记录在evaluator_manual_review.jsonl（若存在）；不覆盖主评分。
+已复核{len(reviewed)}条记录，单列manual_review_oracle_sensitivity.csv，避免将解析器
+失败直接解释为推理失败。复核不能用于事后选择训练样本或调参。
 初始Pilot发现单值JSON包装（如字符串内的total_pets对象）导致数值答案不能被识别。
 随后统一为全部条件加入单值包装解开规则，并明确最终值prompt，所有受影响Pilot
 重新生成。修正前结果/配置在diagnostics/evaluator_wrapper_pilot，不与主结果混用。

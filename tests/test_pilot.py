@@ -83,15 +83,18 @@ class PilotTests(unittest.TestCase):
         self.assertTrue(any(not event.valid for event in state.events))
 
     def test_oracle_retains_ties_and_uses_only_complete_action_groups(self):
-        from dari.pilot_analysis import matched_groups,local_oracle
+        from dari.pilot_analysis import matched_groups,local_oracle,deep_review_groups
         from dari.pilot import BRANCHES
-        rows=[{"prefix_id":"p1","method":method,"reward":float(method=="help_submit"),"dataset":"gsm8k"} for method in BRANCHES]
+        rows=[{"prefix_id":"p1","task_id":"t1","method":method,"reward":float(method=="help_submit"),"dataset":"gsm8k"} for method in BRANCHES]
         rows.append({"prefix_id":"incomplete","method":"continue","reward":1.,"dataset":"gsm8k"})
         groups=matched_groups(rows)
         self.assertEqual(set(groups),{"p1"})
         report=local_oracle(groups)
         self.assertEqual(report[0]["local_oracle"],1.)
         self.assertEqual(report[0]["oracle_gap"],0.)
+        reviewed=deep_review_groups(groups,[{"task_id":"t1","method":"continue","manual_reward":1}])
+        self.assertEqual(reviewed["p1"]["continue"]["reward"],1)
+        self.assertEqual(groups["p1"]["continue"]["reward"],0)
 
     def test_resume_rejects_incompatible_manifest_before_loading_models(self):
         with tempfile.TemporaryDirectory() as directory:
