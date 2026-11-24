@@ -28,12 +28,19 @@ def run_dataset(config: dict, tasks: str | Path, output: str | Path,
                    "cost_complete": not terminal.ledger.unmeasured_overheads,
                    "tokens_by_model": terminal.ledger.tokens_by_model(),
                    "synthetic": runtime.backend.synthetic,
+                   "experiment_mode": runtime.config.experiment_mode,
+                   "budget_exceeded": terminal.ledger.total > terminal.budget,
+                   "uncached_prefill_tokens_by_model": {key: value["input"]-value["cached_input"] for key, value in terminal.ledger.tokens_by_model().items()},
                    "e2e_ms": (time.perf_counter()-start)*1000,
                    "decisions": terminal.decisions, "help_sessions": terminal.help_count}
             if evaluate:
                 row["score"] = evaluator_for(record.metric).score(terminal.candidate, record.gold)
             if trace:
                 row["trace"] = [asdict(event) for event in terminal.events]
+                row["controller_decisions"] = terminal.decision_log
+                row["assistance_sessions"] = terminal.assistance_log
+                row["steps"] = [asdict(step) for step in terminal.steps]
+                row["retained_assistance"] = terminal.artifacts
             rows.append(row)
             stream.write(json.dumps(row, ensure_ascii=False)+"\n")
             stream.flush()

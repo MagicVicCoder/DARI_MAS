@@ -94,8 +94,9 @@ def collect_phase(config, tasks, output: str | Path, mode: str,
                 # One exact input/target/quota per prefix; alternatives are output
                 # samples of this input, never a cross-prompt DPO comparison.
                 stage = next((a for a in legal if a.kind == Kind.EXPAND), None)
-                stage = stage or next((a for a in legal if a.kind == Kind.HELP and
-                    a.target.startswith("s") and a.template == "check" and a.width == "narrow" and a.quota == "short"), None)
+                help_actions = [action for action in legal if action.kind == Kind.HELP]
+                if stage is None and help_actions:
+                    stage = rng.choice(help_actions)
                 if stage:
                     result = collect_specialist(runtime, state, stage, policy, evaluator, item.gold,
                         candidates=settings.get("candidates", 4), repeats=repeats, snapshot_id=snapshot,

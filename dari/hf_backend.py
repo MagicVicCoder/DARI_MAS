@@ -12,6 +12,7 @@ import inspect
 import json
 import time
 from typing import Any
+from pathlib import Path
 
 import torch
 
@@ -54,6 +55,10 @@ class ModelHandle:
     identity: dict | None = None
     adapter_id: str = "base"
 
+    @property
+    def hidden_dim(self):
+        return self.model.config.hidden_size
+
     def __post_init__(self):
         if self.context_limit <= 0 or self.temperature < 0 or not 0 < self.top_p <= 1:
             raise ValueError("Invalid context/sampling configuration")
@@ -94,7 +99,9 @@ class HuggingFaceBackend:
         handles = {}
         for model_id, original in specs.items():
             spec = dict(original)
-            path = spec.pop("name_or_path")
+            path = spec.pop("name_or_path", spec.pop("model_path", None))
+            if not path:
+                raise ValueError("Model path required")
             tokenizer_path = spec.pop("tokenizer", path)
             adapter = spec.pop("adapter", None)
             revision = spec.pop("revision", None)
@@ -106,11 +113,12 @@ class HuggingFaceBackend:
                 raise ValueError("Remote code execution is disabled; load a vetted model in a custom factory")
             device_map = spec.pop("device_map", None)
             device = spec.pop("device", "cuda" if torch.cuda.is_available() else "cpu")
-            tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, revision=revision,
+            local = Path(path).exists()
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, revision=revision, local_files_only=local,
                                                       use_fast=True, trust_remote_code=False)
             if not tokenizer.is_fast:
                 raise ValueError("A fast tokenizer with character offsets is required for span pooling")
-            kwargs = {"torch_dtype": dtype, "revision": revision, "trust_remote_code": False, **model_kwargs}
+            kwargs = {"local_files_only": local, "torch_dtype": dtype, "revision": revision, "trust_remote_code": False, **model_kwargs}
             if device_map is not None:
                 kwargs["device_map"] = device_map
             model = AutoModelForCausalLM.from_pretrained(path, **kwargs)
@@ -122,11 +130,15 @@ class HuggingFaceBackend:
             if adapter:
                 from peft import PeftModel
                 model = PeftModel.from_pretrained(model, adapter, is_trainable=False)
-            codec = PromptCodec(tokenizer, spec.pop("chat_template_kwargs", {}), spec.pop("chat", True))
+            template_kwargs = spec.pop("chat_template_kwargs", {})
+            if "enable_thinking" in spec:
+                template_kwargs["enable_thinking"] = spec.pop("enable_thinking")
+            codec = PromptCodec(tokenizer, template_kwargs, spec.pop("chat", True))
             identity = {"model": str(path), "revision": resolved_revision, "dtype": dtype_name,
                         "tokenizer": fingerprint(tokenizer.backend_tokenizer.to_str()),
                         "chat_template": fingerprint(tokenizer.chat_template), "chat": codec.chat,
                         "chat_template_kwargs": codec.chat_template_kwargs, "model_kwargs": model_kwargs}
+            spec.setdefault("context_limit", int(model.config.max_position_embeddings))
             allowed = {"context_limit", "temperature", "top_p"}
             if set(spec)-allowed:
                 raise ValueError(f"Unknown model settings: {sorted(set(spec)-allowed)}")
@@ -218,25 +230,64 @@ class HuggingFaceBackend:
             vectors = output_hidden or [hidden[-1].float()]
             features["output"] = Feature(request.role, torch.stack(vectors).mean(0).cpu().tolist())
             text = tokenizer.decode(generated, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-            draft_start = text.find('"draft"')
-            if draft_start >= 0 and output_hidden:
-                colon = text.find(":", draft_start)
-                start = colon+1
-                while start < len(text) and text[start].isspace():
-                    start += 1
-                try:
-                    _, length = json.JSONDecoder().raw_decode(text[start:])
-                    end = start+length
-                    selected, prior = [], 0
-                    for i, vector in enumerate(output_hidden):
-                        following = len(tokenizer.decode(generated[:i+1], skip_special_tokens=True,
-                                                         clean_up_tokenization_spaces=False))
-                        if following > start and prior < end:
-                            selected.append(vector)
-                        prior = following
-                    if selected:
-                        features["draft"] = Feature(request.role, torch.stack(selected).mean(0).cpu().tolist())
-                except ValueError:
-                    pass
+            ranges = output_value_spans(text)
+            boundaries = [0] + [len(tokenizer.decode(generated[:i+1], skip_special_tokens=True,
+                               clean_up_tokenization_spaces=False)) for i in range(len(output_hidden))]
+            for name, (begin, end) in ranges.items():
+                selected = [vec for i, vec in enumerate(output_hidden)
+                            if boundaries[i+1] > begin and boundaries[i] < end]
+                if selected:
+                    features[name] = Feature(request.role, torch.stack(selected).mean(0).cpu().tolist())
+            raw_text = text
+            if "</think>" in text:
+                text = text.split("</think>", 1)[1].strip()
         self.last_latency_ms = (time.perf_counter()-start_time)*1000
-        return Generation(text, Usage(request.model_id, len(ids), len(generated), context_tokens=len(ids)), features)
+        return Generation(text, Usage(request.model_id, len(ids), len(generated), context_tokens=len(ids)), features, self.last_latency_ms, raw_text)
+
+
+def output_value_spans(text: str) -> dict[str, tuple[int, int]]:
+    """Locate top-level JSON value spans, including escaped strings and nested objects."""
+    start = text.find("</think>")
+    start = text.find("{", start+len("</think>") if start >= 0 else 0)
+    if start < 0:
+        return {}
+    decoder, result, pos = json.JSONDecoder(), {}, start+1
+    try:
+        while pos < len(text):
+            while pos < len(text) and text[pos].isspace():
+                pos += 1
+            if text[pos] == "}":
+                break
+            key, used = decoder.raw_decode(text[pos:])
+            pos += used
+            while text[pos].isspace():
+                pos += 1
+            if text[pos] != ":":
+                return {}
+            pos += 1
+            while text[pos].isspace():
+                pos += 1
+            value, used = decoder.raw_decode(text[pos:])
+            if key in {"draft", "help_request", "goal", "answer"} and value is not None:
+                if key == "help_request" and isinstance(value, dict):
+                    packet = text[pos:pos+used]
+                    instruction_key = packet.find('"instruction"')
+                    colon = packet.find(":", instruction_key+len('"instruction"'))
+                    begin = colon+1
+                    while packet[begin].isspace():
+                        begin += 1
+                    _, length = decoder.raw_decode(packet[begin:])
+                    result[key] = (pos+begin+1, pos+begin+length-1)
+                else:
+                    result[key] = (pos, pos+used)
+            pos += used
+            while text[pos].isspace():
+                pos += 1
+            if text[pos] == "}":
+                break
+            if text[pos] != ",":
+                return {}
+            pos += 1
+    except (ValueError, IndexError, TypeError):
+        return {}
+    return result

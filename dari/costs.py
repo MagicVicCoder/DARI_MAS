@@ -119,4 +119,5 @@ class CostLedger:
             row["output"] += usage.output_tokens
             row["cached_input"] += usage.cached_input_tokens
             row["calls"] += 1
+            row["uncached_prefill"] = row["input"] - row["cached_input"]
         return result

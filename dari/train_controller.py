@@ -59,7 +59,7 @@ def train_from_targets(data: str | Path, output: str | Path, steps: int = 20,
         reward = torch.tensor([[r.reward] for r in selected], device=device)
         cost = torch.tensor([[r.cost] for r in selected], device=device)
         return obs, actions, reward, cost
-    losses = []
+    losses, gradient_norms, update_norms = [], [], []
     for _ in range(steps):
         selected = [rows[i] for i in torch.randint(len(rows), (min(batch_size, len(rows)),)).tolist()]
         obs, actions, reward, cost = batch(selected)
@@ -70,8 +70,10 @@ def train_from_targets(data: str | Path, output: str | Path, steps: int = 20,
         if not torch.isfinite(loss):
             raise FloatingPointError("Nonfinite training loss")
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
+        gradient_norms.append(float(torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)))
+        before = [parameter.detach().clone() for parameter in model.parameters()]
         optimizer.step()
+        update_norms.append(sum(float((parameter.detach()-old).square().sum()) for parameter, old in zip(model.parameters(), before))**.5)
         losses.append(float(loss.detach()))
     model.eval()
     with torch.no_grad():
@@ -91,6 +93,7 @@ def train_from_targets(data: str | Path, output: str | Path, steps: int = 20,
     torch.save({"model_state": model.state_dict(), "config": asdict(config), "data_metadata": metadata}, temporary)
     temporary.replace(output)
     return {"initial_loss": losses[0], "final_loss": final_loss, "steps": steps,
+            "per_step_loss": losses, "gradient_norms": gradient_norms, "parameter_update_norms": update_norms, "learning_rate": lr,
             "parameters": sum(p.numel() for p in model.parameters()), "checkpoint": str(output),
             "initialized_from": str(resume) if resume else None, **metadata}
 

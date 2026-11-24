@@ -1,0 +1,58 @@
+# DARI-MAS V1 method
+
+Anchor owns the global chain. Its checkpoint includes step, existing refs, optional
+goal, dynamic help request, candidate and explicit invalidation. Runtime allocates
+s/g/h IDs and resolves current_step. History appends; invalidation precedes answer
+replacement. Runtime fallback metadata never enters the model output schema.
+
+Continue advances the global task. SelfRepair executes the current dynamic request
+with full global history. Help delegates the same request using narrow/wide context
+and short/oneshot quota. Finish needs a candidate and invokes no LLM. Null requests
+receive a deterministic generic inspection task, labeled with origin and reason.
+Its semantic proxy is the target's actual hidden representation plus a fallback
+indicator; it is not represented as generated request activations.
+
+Narrow includes the complete question/constraints, target/owner, required_refs and
+direct references. Wide adds configurable recent records and their direct refs.
+Context source IDs are deduplicated and logged. Unrelated source documents are not
+automatically included. Excessive Specialist input masks the action; models do not
+truncate prompts. Necessary constraints must be in the original question or refs.
+
+Help opens empty private history. Each valid stage adds its complete work and draft
+within that session only. Configured stage caps bound expansion. Expand leaves
+Anchor frozen. Invalid stages are charged but excluded from private history and do
+not replace the last valid draft/features. Latest legal draft is preferred without
+a monotonic-quality assumption. No quality-based draft selection is implemented.
+
+Submit passes only the draft as temporary hN evidence. Explicit citation retains
+its original content for later prompts. Anchor may incorporate content without
+citation, so citation rate is not information-use rate. Abort passes no private
+content. Both clear helper state/features and retain sunk costs. Logs do not enter
+prompts. Retained evidence can re-enter future sessions by context selection.
+
+Controller preserves the lightweight two-block Transformer, action-conditioned
+reward/future-cost heads and Rhat-lambda*Khat utility. Model-specific projections
+accept actual dimensions. Observations include task, configurable recent global
+records, goal, request, candidate, local stages/draft and numeric budget/call/session
+features. Missing features are masked. Semantic request projection replaces the
+operation embedding. The serialized Action.template slot remains empty, solely
+for container compatibility. Controller compression is not Anchor's full history
+and carries no Markov guarantee.
+
+Same-prefix branches deep-copy history, candidate, request, cost and feature state;
+seeds isolate continuations. Labels subtract prefix costs and include all future
+calls/overheads. Schema-v2 rows record requests, seeds and deployment/policy
+snapshots. Huber heads predict terminal reward and normalized future cost.
+Specialist candidates share exact input/history/quota; executed downstream utility
+and uncertainty-aware gaps determine preferences. Context/quota selection varies
+rather than fixing narrow-short-check. Coverage still depends on visited prefixes.
+
+Alternation retains protocol SFT, frozen-phi theta updates, frozen-theta LoRA
+DPO/SFT, recollection and final theta refresh. Reference scores are fixed before
+optimization. Uncalibrated debug labels cannot enter formal utility training.
+Synthetic pairs validate plumbing only. Budget-matched SelfRepair/Help comparisons
+can set equal output caps but still require measured repeated-input/resource costs.
+
+Limits and exhaustion terminate with explicit reasons. One Anchor formatting retry
+is billed. Forced policies cover paths but cannot establish trained-policy quality.
+There are no claims of convergence, efficiency or benchmark accuracy.

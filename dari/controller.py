@@ -23,6 +23,7 @@ class ControllerConfig:
     numeric_dim: int = 12
     action_numeric_dim: int = 8
     lambda_cost: float = .1
+    schema_version: int = 2
 
 
 class ValueController(nn.Module):
@@ -34,13 +35,13 @@ class ValueController(nn.Module):
         self.specialist_proj = nn.Linear(config.specialist_dim, d)
         self.numeric_proj = nn.Linear(config.numeric_dim, d)
         self.cls = nn.Parameter(torch.zeros(1, 1, d))
-        self.positions = nn.Embedding(32, d)
+        self.positions = nn.Embedding(512, d)
         self.sources = nn.Embedding(4, d)
         block = nn.TransformerEncoderLayer(d, config.heads, config.ff_dim,
             dropout=0., activation="gelu", batch_first=True, norm_first=True)
         self.fusion = nn.TransformerEncoder(block, config.layers, enable_nested_tensor=False)
         self.kind_embed = nn.Embedding(len(Kind), 32)
-        self.template_embed = nn.Embedding(3, 8)
+        self.request_proj = nn.Linear(config.anchor_dim, 8)
         self.width_embed = nn.Embedding(3, 8)
         self.quota_embed = nn.Embedding(3, 8)
         self.action_encoder = nn.Sequential(nn.Linear(56 + 2*d + config.action_numeric_dim, d), nn.GELU())
@@ -68,7 +69,7 @@ class ValueController(nn.Module):
         context = (self.anchor_proj(actions["context_anchor"].detach())
                    + self.specialist_proj(actions["context_specialist"].detach()))
         categorical = torch.cat([self.kind_embed(actions["kind"]),
-            self.template_embed(actions["template"]), self.width_embed(actions["width"]),
+            self.request_proj(actions["request"].detach()), self.width_embed(actions["width"]),
             self.quota_embed(actions["quota"])], dim=-1)
         action = self.action_encoder(torch.cat([categorical, target, context, actions["numeric"].detach()], dim=-1))
         state = state[:, None, :].expand_as(action)
@@ -93,33 +94,35 @@ def encode_state_actions(runtime: Runtime, state: EpisodeState, actions: list[Ac
             raise ValueError(f"Wrong hidden dimension for {key}")
         return feature.values
 
-    akeys = (["task"] if "task" in state.features else []) + [s.step_id for s in state.steps[-8:]]
+    akeys = (["task"] if "task" in state.features else []) + [s.step_id for s in state.steps[-runtime.config.controller_history:]] + ["current_goal", "help_request"]
     if state.candidate is not None:
         akeys.append("candidate" if "candidate" in state.features else state.steps[-1].step_id)
-    skeys = [k for k in ("helper_stage_1", "helper_stage_2", "helper_draft") if k in state.features]
-    anchor = torch.zeros(1, 10, anchor_dim)
-    specialist = torch.zeros(1, 3, specialist_dim)
-    av, sv = torch.zeros(1, 10, dtype=torch.bool), torch.zeros(1, 3, dtype=torch.bool)
+    skeys = [f"helper_stage_{i}" for i in range(1, runtime.config.max_specialist_stages+1) if f"helper_stage_{i}" in state.features]
+    if "helper_draft" in state.features:
+        skeys.append("helper_draft")
+    anchor = torch.zeros(1, runtime.config.controller_history+4, anchor_dim)
+    specialist = torch.zeros(1, runtime.config.max_specialist_stages+1, specialist_dim)
+    av, sv = torch.zeros(1, runtime.config.controller_history+4, dtype=torch.bool), torch.zeros(1, runtime.config.max_specialist_stages+1, dtype=torch.bool)
     for i, key in enumerate(akeys):
         anchor[0, i] = torch.tensor(vector(key, "anchor", anchor_dim))
-        av[0, i] = True
+        av[0, i] = key in state.features
     for i, key in enumerate(skeys):
         specialist[0, i] = torch.tensor(vector(key, "specialist", specialist_dim))
         sv[0, i] = True
     cfg = runtime.config
     numeric = [state.remaining/max(state.budget, 1.), state.ledger.total/cfg.reference_cost,
-        float(state.help is not None), (state.help.stage/2 if state.help else 0.),
+        float(state.help is not None), (state.help.stage/cfg.max_specialist_stages if state.help else 0.),
         len(state.steps)/cfg.max_anchor_steps, state.calls["specialist"]/(2*cfg.max_anchor_steps),
         float(state.candidate is not None), state.calls["anchor"]/cfg.max_anchor_steps,
         state.help_count/cfg.max_anchor_steps, state.budget/cfg.reference_cost,
-        float(state.terminal), state.decisions/cfg.max_decisions]
+        float(state.help_request.fallback if state.help_request else False), state.decisions/cfg.max_decisions]
     obs = {"anchor": anchor, "specialist": specialist, "anchor_valid": av, "specialist_valid": sv,
            "numeric": torch.tensor([numeric], dtype=torch.float32)}
     kinds, templates, widths, quotas, targets, contexts_a, contexts_s, numbers = [], [], [], [], [], [], [], []
     legal_set = set(runtime.actions(state))
     for action in actions:
         kinds.append(list(Kind).index(action.kind))
-        templates.append({"": 0, "check": 1, "recompute": 2}[action.template])
+        templates.append(0)
         widths.append({"": 0, "narrow": 1, "wide": 2}[action.width])
         quotas.append({"": 0, "short": 1, "oneshot": 2}[action.quota])
         targets.append(vector(action.target, "anchor", anchor_dim))
@@ -144,8 +147,10 @@ def encode_state_actions(runtime: Runtime, state: EpisodeState, actions: list[Ac
                         estimated_cost/cfg.reference_cost, count/16., float(action.kind == Kind.SUBMIT),
                         float(action.kind == Kind.ABORT), float(action.kind == Kind.FINISH),
                         state.remaining/cfg.reference_cost])
+    request_key = state.help_request.target if state.help_request and state.help_request.fallback else "help_request"
     encoded = {
         "kind": torch.tensor([kinds]), "template": torch.tensor([templates]),
+        "request": torch.tensor([[vector(request_key, "anchor", anchor_dim) for _ in actions]], dtype=torch.float32),
         "width": torch.tensor([widths]), "quota": torch.tensor([quotas]),
         "target": torch.tensor([targets], dtype=torch.float32),
         "context_anchor": torch.tensor([contexts_a], dtype=torch.float32),
@@ -167,6 +172,11 @@ class NeuralPolicy:
         self.runtime, self.model, self.overhead = runtime, model, overhead
 
     def __call__(self, state: EpisodeState, actions: list[Action]) -> Decision:
+        if not self.runtime.backend.synthetic:
+            if not state.features.get("task") or not state.steps or state.steps[-1].step_id not in state.features:
+                raise ValueError("Neural Controller requires actual model hidden states")
+            if state.help_request and not state.help_request.fallback and "help_request" not in state.features:
+                raise ValueError("Dynamic request hidden span is unavailable; cannot substitute a fabricated feature")
         cfg = self.model.config
         obs, encoded = encode_state_actions(self.runtime, state, actions, cfg.anchor_dim, cfg.specialist_dim)
         device = next(self.model.parameters()).device
@@ -174,7 +184,9 @@ class NeuralPolicy:
         encoded = {k: v.to(device) for k, v in encoded.items()}
         self.model.eval()
         with torch.inference_mode():
-            index = self.model(obs, encoded)["utility"].argmax(-1).item()
+            values = self.model(obs, encoded)
+            self.last_scores = {key: value.cpu().tolist() for key, value in values.items()}
+            index = values["utility"].argmax(-1).item()
         if self.overhead is None:
             return Decision(actions[index])
         cost, unit = self.overhead()

@@ -1,5 +1,5 @@
 """Explicit source selection and prompt assembly; no generative summarizer."""
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import json
 from typing import TYPE_CHECKING
 
@@ -76,13 +76,16 @@ def build_pack(state: "EpisodeState", target: str, width: str) -> ContextPack:
     if target not in available:
         raise ValueError("Unknown help target")
     chosen = [target]
+    request = getattr(state, "help_request", None)
+    if request:
+        chosen.extend(request.required_refs)
     owner_id = "s" + target[1:] if target.startswith("g") else target
     owners = {s.step_id: s for s in state.steps}
     if owner_id in owners:
         chosen.append(owner_id)
         chosen.extend(owners[owner_id].record.refs)
     if width == "wide":
-        for step in state.steps[-4:]:
+        for step in state.steps[-getattr(state, "wide_history", 4):]:
             chosen.append(step.step_id)
             chosen.extend(step.record.refs)
     ids = tuple(dict.fromkeys(i for i in chosen if i in available))
@@ -92,14 +95,21 @@ def build_pack(state: "EpisodeState", target: str, width: str) -> ContextPack:
 
 
 def anchor_input(state: "EpisodeState", instruction: str, temporary_help: tuple[str, str] | None = None) -> PromptPacket:
+    history = []
+    for step in state.steps:
+        record = asdict(step.record)
+        if record["help_request"] is not None:
+            record["help_request"] = {key: record["help_request"][key] for key in ("instruction", "target", "required_refs")}
+        history.append({"id": step.step_id, **record})
     body = {"task": state.task.question, "sources": state.task.sources,
-            "steps": [{"id": s.step_id, "step": s.record.step, "refs": s.record.refs,
-                       "goal": s.record.goal} for s in state.steps],
+            "steps": history,
             "evidence": dict(state.artifacts), "candidate": state.candidate}
     if temporary_help is not None:
         body["temporary_help"] = {temporary_help[0]: temporary_help[1]}
     rule = ("Return one JSON object: step (new reasoning text), refs (at most 4 existing IDs), "
-            "goal (active subgoal or null), answer (complete answer or null). "
+            "goal (active subgoal or null), answer (complete answer as a JSON string or null, never a number or boolean), "
+            "help_request (null or {instruction: an open-ended local task, target: current_step or an existing ID, required_refs: existing IDs}), "
+            "invalidate_answer (boolean; true revokes an obsolete candidate before applying answer). "
             "External help is fallible. Reference its ID only if retaining its evidence. ")
     tracked = {("task",): "task", ("candidate",): "candidate"}
     tracked.update({("sources", key): key for key in state.task.sources})

@@ -20,8 +20,10 @@ def build_demo(config_path: str | Path | None = None) -> tuple[Runtime, Task]:
     profiles = {p["model_id"]: ModelProfile(**p) for p in config["profiles"]}
     if not all(p.synthetic for p in profiles.values()):
         raise ValueError("Scripted demo requires explicitly synthetic profiles")
-    first = dict(step="Assume sqrt(x*x)=x, hence -1.", refs=["p1"], goal="Check the sign condition.", answer="-1")
-    corrected = dict(step="The principal square root is |x|=1.", refs=["h1"], goal=None, answer="1")
+    first = dict(step="Assume sqrt(x*x)=x, hence -1.", refs=["p1"], goal="Check the sign condition.", answer="-1",
+                 help_request={"instruction": "Derive the principal square root using the sign constraint.",
+                               "target": "current_step", "required_refs": ["p1"]})
+    corrected = dict(step="The principal square root is |x|=1.", refs=["p1"], goal=None, answer="1")
     help_obj = dict(work="Private exploration of sign cases; not sent to Anchor.",
         draft=dict(target="s1", finding="The missing absolute value changes the result.",
                    support="At x=-1, sqrt(x*x) is nonnegative.", change="Use |x| and answer 1.", unresolved=""))
@@ -51,7 +53,7 @@ def run_demo(output_dir: Path | None = None, expand: bool = False,
                 action = next(a for a in actions if a.kind == Kind.ABORT)
         elif state.help_count == 0:
             action = next(a for a in actions if a.kind == Kind.HELP and a.target == "s1"
-                          and a.template == "check" and a.width == "narrow"
+                          and a.width == "narrow"
                           and a.quota == ("oneshot" if oneshot else "short"))
         else:
             action = next(a for a in actions if a.kind == Kind.FINISH)
@@ -75,7 +77,7 @@ def collect_demo_targets(path: str | Path) -> None:
     rt, task = build_demo()
     initial = rt.initial(task)
     selected = [a for a in rt.actions(initial) if a.kind in (Kind.FINISH, Kind.CONTINUE) or
-                (a.kind == Kind.HELP and a.target == "s1" and a.template == "check" and a.width == "narrow" and a.quota == "short")]
+                (a.kind == Kind.HELP and a.target == "s1" and a.width == "narrow" and a.quota == "short")]
     common = dict(policy=finish_policy, evaluator=ExactMatch(), gold="1", repeats=2,
                   snapshot_id="scripted-A-S-v1-finish-policy", anchor_dim=12, specialist_dim=9)
     rows = collect_branches(rt, initial, selected, **common)

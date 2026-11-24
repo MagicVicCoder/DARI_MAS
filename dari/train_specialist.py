@@ -16,6 +16,7 @@ import time
 import torch
 
 from .hf_backend import PromptCodec, _input_device
+from .identity import artifact_digest
 from .schema import SpecialistRecord
 from .specialist_data import read_records, response_batch
 from .training import dpo_loss, sequence_log_probs, sft_loss
@@ -65,6 +66,7 @@ def optimize_specialist(model, codec: PromptCodec, records: list[dict], mode: st
         if len(ref_logps) != len(records) or any(not all(math.isfinite(x) for x in r) for r in ref_logps):
             raise ValueError("Reference scores do not match the preference data")
     trainable = [p for p in model.parameters() if p.requires_grad]
+    frozen_versions = {name: parameter._version for name, parameter in model.named_parameters() if not parameter.requires_grad}
     if not trainable:
         raise ValueError("No trainable adapter parameters")
     optimizer = torch.optim.AdamW(trainable, lr=lr)
@@ -81,7 +83,7 @@ def optimize_specialist(model, codec: PromptCodec, records: list[dict], mode: st
         return sum((a-b)-(r[0]-r[1]) for (a, b), r in zip(policy, ref_logps))/len(records)
 
     initial_margin = margin()
-    losses = []
+    losses, gradient_norms, update_norms = [], [], []
     start = time.perf_counter()
     model.train()
     for _ in range(steps):
@@ -110,14 +112,21 @@ def optimize_specialist(model, codec: PromptCodec, records: list[dict], mode: st
                 raise FloatingPointError("Nonfinite Specialist loss")
             (loss/accumulation).backward()
             total += float(loss.detach())/accumulation
-        torch.nn.utils.clip_grad_norm_(trainable, 1.)
+        gradient_norms.append(float(torch.nn.utils.clip_grad_norm_(trainable, 1.)))
+        before = [parameter.detach().clone() for parameter in trainable]
         optimizer.step()
+        update_norms.append(sum(float((parameter.detach()-old).float().square().sum()) for parameter, old in zip(trainable, before))**.5)
         losses.append(total)
     seconds = time.perf_counter()-start
     model.eval()
+    frozen_unchanged = all(parameter._version == frozen_versions[name] for name, parameter in model.named_parameters() if name in frozen_versions)
+    if not frozen_unchanged:
+        raise RuntimeError("Frozen model or reference parameters changed during optimization")
     return {"mode": mode, "steps": steps, "examples": len(records), "initial_loss": losses[0],
             "final_loss": losses[-1], "initial_margin": initial_margin, "final_margin": margin(),
             "trainable_parameters": sum(p.numel() for p in trainable),
+            "per_step_loss": losses, "gradient_norms": gradient_norms, "parameter_update_norms": update_norms, "learning_rate": lr,
+            "frozen_parameters_unchanged": frozen_unchanged,
             "optimization_seconds": seconds, "reference_seconds": reference_seconds}
 
 
@@ -198,6 +207,8 @@ def train_from_file(data: str | Path, output: str | Path, model_spec: dict, mode
     model.save_pretrained(output, selected_adapters=["default"])
     tokenizer.save_pretrained(output)
     metrics.update(synthetic=rows[0]["synthetic"], model=name, reference_adapter=reference_adapter,
+                   reference_adapter_sha256=artifact_digest(reference_adapter) if reference_adapter else None,
+                   initialized_adapter_sha256=artifact_digest(init_adapter) if init_adapter else None,
                    reference_seconds=ref_seconds, adapter=str(output),
                    data_sha256=hashlib.sha256(Path(data).read_bytes()).hexdigest())
     (output/"training_manifest.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")

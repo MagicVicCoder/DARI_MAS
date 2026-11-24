@@ -19,12 +19,13 @@ def specialist(work="PRIVATE SEARCH", target="s1"):
 
 
 def make_runtime(anchor_outputs=None, specialist_outputs=None, **config):
-    backend = ScriptedBackend({"anchor": anchor_outputs or [anchor(refs=["p1"]), anchor("corrected", ["h1"], "1", None)],
+    backend = ScriptedBackend({"anchor": anchor_outputs or [anchor(refs=["p1"]), anchor("corrected", ["p1"], "1", None)],
                                "specialist": specialist_outputs or [specialist(), specialist("PRIVATE EXPANSION")]})
     profiles = {
         "A": ModelProfile("A", "synthetic_units", 1., 2., provenance="fixture", synthetic=True),
         "S": ModelProfile("S", "synthetic_units", .2, .4, provenance="fixture", synthetic=True),
     }
+    config.setdefault("max_specialist_stages", 2)
     return Runtime(backend, profiles, RuntimeConfig(**config))
 
 
@@ -49,7 +50,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertNotIn("PRIVATE SEARCH", result.events[-1].prompt)
 
     def test_only_explicitly_referenced_draft_is_retained(self):
-        rt = make_runtime()
+        rt = make_runtime(anchor_outputs=[anchor(refs=["p1"]), anchor("corrected", ["h1"], "1", None)])
         state = rt.initial(self.task())
         state = rt.step(state, pick(rt, state, Kind.HELP, target="s1", quota="short"))
         state = rt.step(state, pick(rt, state, Kind.SUBMIT))

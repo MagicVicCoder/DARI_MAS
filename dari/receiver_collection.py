@@ -67,6 +67,8 @@ def collect_specialist(runtime: Runtime, prefix, action: Action, policy, evaluat
                        candidates: int = 4, repeats: int = 2, snapshot_id: str = "",
                        lambda_cost: float = .1, min_gap: float = .01,
                        early_probe: bool = False) -> SpecialistCollection:
+    if runtime.config.experiment_mode == "real_debug":
+        raise ValueError("Uncalibrated real_debug costs cannot produce formal utility labels")
     if candidates < 2 or repeats <= 0 or not snapshot_id:
         raise ValueError("At least two candidates, positive repeats and a frozen snapshot ID required")
     if not math.isfinite(lambda_cost) or lambda_cost < 0:

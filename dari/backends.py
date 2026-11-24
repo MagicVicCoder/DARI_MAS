@@ -28,6 +28,8 @@ class Generation:
     text: str
     usage: Usage
     features: dict[str, Feature] = field(default_factory=dict)
+    latency_ms: float | None = None
+    raw_text: str | None = None
 
 
 class Backend(Protocol):
@@ -78,6 +80,10 @@ class ScriptedBackend:
         features["output"] = self._feature(request.role, text)
         try:
             obj = json.loads(text)
+            if isinstance(obj, dict):
+                for key in ("help_request", "goal", "answer"):
+                    if obj.get(key) is not None:
+                        features[key] = self._feature(request.role, json.dumps(obj[key], sort_keys=True))
             if isinstance(obj, dict) and "draft" in obj:
                 features["draft"] = self._feature(request.role, json.dumps(obj["draft"], sort_keys=True))
         except ValueError:

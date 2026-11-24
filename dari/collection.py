@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import hashlib
 import itertools
 import json
@@ -35,6 +35,7 @@ class ControllerTarget:
     deployment_id: str
     cost_complete: bool
     base_deployment_id: str = ""
+    provenance: dict = field(default_factory=dict)
 
 
 def deployment_id(runtime: Runtime, include_specialist_adapter: bool = True) -> str:
@@ -50,6 +51,8 @@ def collect_branches(runtime: Runtime, prefix: EpisodeState, actions: Sequence[A
                      policy: Callable, evaluator: Evaluator, gold: str, repeats: int,
                      snapshot_id: str, anchor_dim: int, specialist_dim: int,
                      allow_unmeasured_overhead: bool = False) -> list[ControllerTarget]:
+    if runtime.config.experiment_mode == "real_debug":
+        raise ValueError("Uncalibrated real_debug costs cannot produce formal utility labels")
     if repeats <= 0 or not snapshot_id:
         raise ValueError("Positive repeats and explicit policy/S snapshot ID required")
     if any(a not in runtime.actions(prefix) for a in actions):
@@ -81,7 +84,10 @@ def collect_branches(runtime: Runtime, prefix: EpisodeState, actions: Sequence[A
             statistics.stdev(returns) if repeats > 1 else 0., statistics.stdev(costs) if repeats > 1 else 0.,
             {k: v.tolist() for k, v in obs.items()}, {k: v.tolist() for k, v in encoded_action.items()},
             snapshot_id, prefix.ledger.unit, runtime.backend.synthetic, repeats,
-            runtime.config.reference_cost, deployment, complete, deployment_id(runtime, False)))
+            runtime.config.reference_cost, deployment, complete, deployment_id(runtime, False),
+            {"help_request": asdict(prefix.help_request) if prefix.help_request else None,
+             "seeds": [prefix.seed+repeat for repeat in range(repeats)],
+             "model_snapshot": runtime.backend.deployment_identity, "downstream_policy_snapshot": snapshot_id}))
     return rows
 
 
@@ -91,7 +97,7 @@ def write_targets(path: str | Path, rows: Sequence[ControllerTarget]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             body = asdict(row)
-            body["schema_version"] = 1
+            body["schema_version"] = 2
             handle.write(json.dumps(body, ensure_ascii=False) + "\n")
 
 
@@ -102,7 +108,7 @@ def read_targets(path: str | Path) -> list[ControllerTarget]:
             if not line.strip():
                 continue
             body = json.loads(line)
-            if body.pop("schema_version", None) != 1:
+            if body.pop("schema_version", None) != 2:
                 raise ValueError("Unsupported target schema")
             body["action"]["kind"] = Kind(body["action"]["kind"])
             body["action"] = Action(**body["action"])

@@ -106,7 +106,7 @@ def build_runtime(config: dict) -> Runtime:
     spec = deepcopy(config["backend"])
     profiles = {p["model_id"]: ModelProfile(**p) for p in config["profiles"]}
     CostLedger(profiles)
-    if any(not p.synthetic for p in profiles.values()) and not config.get("calibration_confirmed", False):
+    if any(not p.synthetic for p in profiles.values()) and not config.get("calibration_confirmed", False) and config.get("runtime", {}).get("experiment_mode") != "real_debug":
         raise ValueError("Real inference requires calibrated profiles and calibration_confirmed=true")
     kind = spec.pop("type")
     if kind == "hf":
@@ -126,6 +126,11 @@ def build_runtime(config: dict) -> Runtime:
     for method in ("count_tokens", "count_text_tokens", "generate"):
         if not callable(getattr(backend, method, None)):
             raise ValueError(f"Backend must implement {method}")
+    if hasattr(backend, "handles"):
+        runtime_config = config.get("runtime", {})
+        config["observation"] = {
+            "anchor_dim": backend.handles[runtime_config.get("anchor_model", "A")].hidden_dim,
+            "specialist_dim": backend.handles[runtime_config.get("specialist_model", "S")].hidden_dim}
     return Runtime(RecordingBackend(backend), profiles, RuntimeConfig(**config.get("runtime", {})))
 
 
@@ -149,9 +154,14 @@ def fixed_overhead(runtime: Runtime, config: dict):
 def make_policy(runtime: Runtime, config: dict, checkpoint: str | Path | None = None,
                 allow_specialist_update: bool = False):
     overhead = fixed_overhead(runtime, config)
+    if config.get("debug_policy"):
+        from .policies import DebugPolicy
+        return DebugPolicy(config["debug_policy"], config.get("debug_help_sessions", 1))
     checkpoint = checkpoint or config.get("controller_checkpoint")
     if checkpoint:
         saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
+        if saved.get("config", {}).get("schema_version") != 2:
+            raise ValueError("Legacy Controller checkpoint is incompatible with dynamic assistance v2")
         metadata = saved["data_metadata"]
         same_deployment = metadata["deployment_id"] == deployment_id(runtime)
         permitted_phi_update = (allow_specialist_update and metadata.get("base_deployment_id") == deployment_id(runtime, False))
@@ -172,7 +182,7 @@ def make_policy(runtime: Runtime, config: dict, checkpoint: str | Path | None = 
             selected = selected or next((a for a in legal if a.kind == Kind.ABORT), None)
         elif state.help_count == 0:
             selected = next((a for a in legal if a.kind == Kind.HELP and a.target.startswith("s") and
-                             a.template == "check" and a.width == "narrow" and a.quota == "short"), None)
+                             a.width == "narrow" and a.quota == "short"), None)
         for kind in (Kind.FINISH, Kind.CONTINUE, Kind.REPAIR):
             selected = selected or next((a for a in legal if a.kind == kind), None)
         if selected is None:
