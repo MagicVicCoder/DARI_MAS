@@ -157,12 +157,15 @@ def analyze(root):
              for prefix,group in groups.items()]
     write_csv(root/"e1/state_matrix.csv",matrix)
     assistance=[row for row in e1 if row["method"]=="help_submit"]
+    specialist_errors=Counter(event["error"] for row in read_rows(root/"e1/traces.jsonl") if row["method"]=="help_submit"
+                             for event in row["events"] if event["role"]=="specialist" and not event["valid"])
     request_stats={"eligible_checkpoints":len(groups),"e0_dari_tasks":sum(row["method"]=="dari_anchor_only" for row in e0),
         "help_branches":len(assistance),"submitted":sum(row["submitted"] for row in assistance),
         "explicitly_retained":sum(row["explicitly_retained"] for row in assistance),
         "fallback":sum(row["dynamic_request"]["fallback"] for row in assistance),
         "request_exact_repetitions":sum(row["request_repeated"] for row in e0 if row["method"]=="dari_anchor_only"),
         "request_total":sum(row["request_count"] for row in e0 if row["method"]=="dari_anchor_only")}
+    request_stats["specialist_errors"]=dict(specialist_errors)
     (root/"e1/request_summary.json").write_text(json.dumps(request_stats,indent=2))
     request_examples=[{"prefix_id":row["prefix_id"],"task_id":row["task_id"],"dataset":row["dataset"],
                       "instruction":row["dynamic_request"]["instruction"],"target":row["dynamic_request"]["target"],
@@ -178,7 +181,8 @@ def analyze(root):
                 "win":sum(value>1e-8 for value in values),"tie":sum(abs(value)<=1e-8 for value in values),
                 "loss":sum(value < -1e-8 for value in values),"mean_f1_gain":mean(values)})
     write_csv(root/"e1/f1_win_tie_loss.csv",f1_paired)
-    uncertainty=[{key:row.get(key) for key in ("task_id","dataset","method","answer","extracted","evaluator_status")} for row in e0+e1 if row["evaluator_status"] in {"manual_review_required","unparsed_answer"}]
+    uncertainty=[{key:row.get(key) for key in ("task_id","dataset","method","answer","extracted","evaluator_status")} for row in e0+e1
+                 if row.get("answer") is not None and row["evaluator_status"] in {"manual_review_required","unparsed_answer"}]
     write_csv(root/"evaluator_review.csv",uncertainty)
     if robust:
         write_csv(root/"robustness/summary.csv",[{"method":method,"specialist_temperature":temp,
@@ -315,13 +319,35 @@ Oracle为当前有限rollout事后选择的探索性上界，受随机性和样�
 已完成稳健性运行{len(robust)}条；从可用checkpoint按预定种子抽最多8个，比较S温度
 0/.7与Extended内部确定性对照，每条件2次。确定性重复不代表独立统计样本。
 各重复结果保留，未完成则不宣称已验证。summary见robustness/summary.csv。
+最终64条完成时，8个状态在两动作、两温度、各2次重复中终局奖励均未变化：
+每个条件14/16正确。Help在S温度0时6/16提交、0.7时8/16提交，说明交付行为
+比此小样本的终局奖励更敏感。Extended不调用S，因此S温度列是重复对照而非
+改变其采样温度；Anchor在所有条件仍为0。有限状态、不同设备放置及大量Abort
+限制了此稳定性结果，不能推广为随机性普遍无影响。
 当前实际执行资源汇总：`{json.dumps(actual)}`。只计已完成记录，失败/中断尝试需结合日志，
 不把不完整成本说成完整成本。E1未来成本不重复包含共享前缀；logical_end_to_end_resources
 单独包含前缀。前缀复用节省的是实验执行开销，不是部署加速证明。
 GPU峰值/设备见execution.json及logs环境记录。异构token汇总仅诊断，未解释为GPU成本；
+稳健性因当前显存改变设备放置：独立Anchor与分两卡Specialist，详情在
+robustness/placement.json及execution.json。权重、prompt和预算不变；设备放置
+会影响延迟及可能的数值舍入，因此不将其时延与主实验做严格公平性能比较。
 cost_complete=false，不用于正式Cost Head/DPO训练。
 
 ## 诊断、局限和后续建议
+
+完整主实验的主要观察（最终规模为60任务、36完整checkpoint）：GSM8K的
+Standard/Stepwise/DARI为19/20、18/20、16/20；MATH为19/20、11/20、13/20；
+HotpotQA EM为12/20、14/20、12/20。结构化协议对数学有格式负担，但不同数据集
+趋势不一致，不能仅用总分归因。36状态的Continue/SelfRepair/Extended/Help为
+26/36、25/36、23/36、24/36。Help相对Continue为0胜34平2负，相对Extended为
+3胜31平2负；未观察到Help挽救Continue失败。Local Oracle为28/36，最佳固定
+26/36；人工复核后总体gap仍2/36（Pilot阶段该gap降为零）。这只是有限rollout
+混合任务的事后上界，不能证明可部署收益。
+
+交付瓶颈必须单独解释：36个Help仅14个提交，22个均因Draft超过192-token上限；
+10个Anchor自主请求中仅1个提交，26个为fallback。未按失败事后调大预算重写结果。
+平均Help表现混合了协议遵循和局部推理，不能解释为“有效辅助均交付后仍无收益”。
+后续应先预注册Draft简洁性/预算诊断，检查请求缺失和过早答案，再考虑正式训练。
 
 先区分格式/解析失败、步骤重复或预算耗尽、真实推理错误、局部证据不足及错误辅助整合。
 不能把全部负例归因于未训练，也不能从少量正例断言协作有效。平均收益、状态差异和
@@ -337,6 +363,9 @@ cost_complete=false，不用于正式Cost Head/DPO训练。
 未复制Runtime、未增加Verifier或RAG、未训练任何模型。README和方法文档同步更新。
 Git和最终回归检查见logs。Phase1报告、失败证据与有效权重保留。Phase2A输出及数据
 受.gitignore保护，不自动push新实验。研究产物应独立归档。
+最终回归71项全部通过；主结果integrity_audit.json及稳健性integrity.json验证唯一
+条件数和前缀不变。阶段产物保留于outputs/phase2a；没有训练Controller/Specialist，
+没有修改原始权重或停止他人任务。稳健性设备脚本位于scripts/phase2a_robustness.py。
 '''
     (root/"phase2a_report.md").write_text(report)
     print(json.dumps({"e0_runs":len(e0),"e1_runs":len(e1),"matched_prefixes":len(groups),"robustness_runs":len(robust),"oracle":oracle},indent=2))

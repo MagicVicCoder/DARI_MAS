@@ -116,6 +116,12 @@ CUDA_VISIBLE_DEVICES=0,2 .venv/bin/python -m dari.pilot --stage robustness
 .venv/bin/python -m dari.pilot_analysis
 ```
 
+If two full instances no longer fit, the recorded Phase 2A robustness placement
+uses one Anchor GPU and a Specialist sharded over two GPUs:
+`CUDA_VISIBLE_DEVICES=7,4,6 PYTHONPATH=. .venv/bin/python scripts/phase2a_robustness.py`.
+Its placement is saved separately and latency is not directly comparable to the
+main two-GPU runs. Check available memory before using either command.
+
 Install optional Phase 2A dependencies with `pip install -e '.[experiments]'`
 (`math-verify==0.8.0`, `pyarrow`, `matplotlib`, `numpy`). Data source URLs,
 content fingerprints and original rows are retained
@@ -130,3 +136,11 @@ prompt, evaluation, model and sample identities. Analysis creates CSV tables,
 PNG/PDF figures and `outputs/phase2a/phase2a_report.md` from completed real runs;
 that report states the actual finished scope. No accuracy threshold or collaboration
 gain is presumed. Unparsed expressions remain flagged for manual review.
+
+Completed Phase 2A: 60 development tasks, 180 E0 runs, 36 eligible prefixes with
+144 E1 branches, and 64 robustness runs on 8 seeded checkpoints. Help versus
+Continue yields 0 wins / 34 ties / 2 losses under the fixed evaluator. Only 14/36
+Help drafts are submitted; 22 exceed the draft-token limit, and 26/36 requests
+are fallback. These are diagnostic findings, not proof of collaboration benefit
+or failure. Full scores, evaluator sensitivity, resource costs and limitations
+are in the Phase 2A report. The regression suite has 71 passing tests.
