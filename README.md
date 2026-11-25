@@ -182,3 +182,46 @@ small oracle gains. Training and automatic push remain disabled. Use committed
 configs for replay; `refinement setup` is a first-time initializer and rejects
 different existing configurations. R3 branch artifacts link to the immutable R3
 E0 index and prefixes; preserve those links when archiving.
+
+## Phase 2B protocol adaptation
+
+`RuntimeConfig.repair_protocol_json` optionally applies conservative syntax-only
+repair before parsing: whole JSON fences and illegal JSON escape characters.
+It never completes truncated records, missing fields, reasoning or answers.
+Raw output, actual token usage and generated hidden features remain unchanged;
+strict mode remains the default. Phase 2B enables the same repair for all methods.
+`dari.phase2b_evaluation` uniformly extracts one explicit final math expression;
+historical scores are retained and sensitivity rescoring is separate.
+
+Protocol SFT uses `train_specialist` with response-only masks, optional heldout
+validation loss, epoch-order batches, progress logs and an explicit training device
+map. Validation must remain independent of training instances; synthetic task
+families are not a test of heldout-template generalization. Only LoRA is trained.
+
+Phase 2B artifacts are in `outputs/phase2b/`: data/source/leakage manifests,
+200 constructed training and 40 validation tasks, actual adapter and losses,
+T0 Base/SFT outputs, new 36-task Anchor trajectories, five-way same-prefix T1,
+and paired same-Specialist-state Submit/Abort T2. The unified report distinguishes
+bounded result-match proxies from reviewed semantic behavior. No Controller or
+Receiver-Utility/DPO training, no automatic push and no calibrated-cost claims.
+
+```bash
+CUDA_VISIBLE_DEVICES=4,6 python -m dari.phase2b t0
+CUDA_VISIBLE_DEVICES=0,1,2,3 python -m dari.phase2b downstream
+python -m dari.phase2b_analysis
+```
+
+Commands resume existing outputs; preserve manifests and adapter identity. Inspect
+current free GPU memory before replay. The setup/data commands initialize new
+artifacts and must not overwrite fixed datasets or experiments.
+
+Phase 2B completed: 50 LoRA optimizer steps (two epochs), 80 T0 generations,
+90 paired T1 branches on 18 eligible prefixes and 17 T2 pairs. T0 Draft target
+matches decline from 32/40 to 20/40; these are limited proxies, with qualitative
+review confirming regressions. Help-Base and Help-SFT both score13/18, paired
+0 wins/18 ties/0 losses. T2 Submit-Abort has3 positive/14 neutral/0 negative
+outcomes. Oracle D-C=0: no observed extra SFT coverage over Base. Training loss
+improves without demonstrated collaboration improvement. See the Phase 2B report
+for format artifacts, exactness effects and restricted synthetic data coverage.
+The trained adapter remains local at `outputs/phase2b/adapter`. Training replay
+uses `python -m dari.phase2b_train` and refuses to overwrite this valid adapter.

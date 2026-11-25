@@ -72,3 +72,30 @@ The R3 branch directory links to original immutable E0 indexes and prefix files;
 archive links with their targets. A failed concurrent model load occurred before
 R3 branch inference; it produces no scored condition. Subsequent 56 branches
 complete after resource release. This does not calibrate GPU resource costs.
+
+## Phase 2B adapters and parsing
+
+Training supports optional `validation_data`, `lora_dropout`, epoch-order batches
+and progress JSONL through the existing Specialist trainer; explicit device_map
+allows BF16 layer sharding without an independent training framework. The response
+mask and causal loss remain unchanged. Frozen tensor versions are checked and
+only default LoRA parameters can receive updates. DPO retains dropout-free fixed
+reference behavior; SFT may use configured LoRA dropout.
+
+Runtime syntax repair occurs after actual generation, leaving raw generated tokens,
+pooled hidden vectors and billed usage unchanged. It cannot fabricate a missing
+Draft representation; fixed Phase 2B comparisons do not train a Controller from
+those states. JSON repair is not constrained decoding and does not guarantee valid
+output. Its deterministic audit overhead is recorded separately from generation.
+T0/T1 load the saved adapter with PEFT and freeze it; Base comparisons disable it
+on the same Specialist object. Anchor remains a separate original frozen object.
+The adapter digest, raw traces and split/config identities are archived locally.
+
+The actual Phase 2B adapter contains15,335,424 trainable LoRA parameters; frozen
+backbone tensor versions remain unchanged. Validation response loss is recorded
+before training and after each epoch. The saved adapter is loaded and used for58
+T0/T1 SFT generations and17 paired communication tests. Base disables that adapter
+on the same S object; only A remains an independent original frozen object.
+Training allocator peaks were recorded; inference allocator peaks were not exported
+and must not be inferred from shared GPU snapshots. See per-model raw token/call/
+latency logs and the report's resource limitation before making cost claims.

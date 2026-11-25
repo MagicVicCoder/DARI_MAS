@@ -34,6 +34,7 @@ class RuntimeConfig:
     controller_history: int = 8
     experiment_mode: str = "synthetic"
     generate_help_request: bool = True
+    repair_protocol_json: bool = False
 
     def __post_init__(self):
         if self.experiment_mode not in {"synthetic", "real_debug", "formal"}:
@@ -277,7 +278,11 @@ class Runtime:
             try:
                 if generation.usage.output_tokens > request.max_new_tokens:
                     raise ValueError("Anchor output exceeds quota")
-                record = AnchorRecord.parse(generation.text)
+                protocol_text = generation.text
+                if self.config.repair_protocol_json:
+                    from .protocol_json import repair_json
+                    protocol_text, _ = repair_json(protocol_text)
+                record = AnchorRecord.parse(protocol_text)
                 known = set(spans(state)) | ({payload[0]} if payload else set())
                 if any(ref not in known for ref in record.refs):
                     raise ValueError("Unknown Anchor reference")
@@ -347,11 +352,15 @@ class Runtime:
         try:
             if generation.usage.output_tokens > request.max_new_tokens:
                 raise ValueError("Specialist output exceeds quota")
-            parsed = SpecialistRecord.parse(generation.text)
+            protocol_text = generation.text
+            if self.config.repair_protocol_json:
+                from .protocol_json import repair_json
+                protocol_text, _ = repair_json(protocol_text)
+            parsed = SpecialistRecord.parse(protocol_text)
             if self.backend.count_text_tokens(request.model_id, parsed.draft.text) > self.config.draft_limit:
                 raise ValueError("Draft payload exceeds quota")
             session.draft = parsed.draft
-            session.private_outputs.append(generation.text)
+            session.private_outputs.append(protocol_text)
         except ValueError as exc:
             error = str(exc)
         for key in ("output", "draft"):

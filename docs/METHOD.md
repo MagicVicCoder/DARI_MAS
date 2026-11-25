@@ -110,3 +110,34 @@ marginal successes B-A / D-C are 2/1 and 1/1. These are exploratory findings:
 Anchor accuracy does not clearly improve, some private work remains advisory,
 and score/parser artifacts and harmful integration remain. See the unified
 refinement report and immutable traces before interpreting mechanism or training.
+
+## Phase 2B: protocol adaptation
+
+Phase 2B keeps Anchor frozen, LoRA Specialist only, and fixed action policies.
+Conservative syntax repair is optional and uniform across comparisons; missing
+fields, invalid types and truncated outputs remain failures. Math final-expression
+extraction is versioned separately, with historical sensitivity results preserved.
+SFT uses 200 explicitly constructed supervised local tasks and 40 distinct-instance
+validation tasks; the ten task families overlap across splits and this limitation
+is explicit. No benchmark development trajectories enter supervision.
+
+T0 pairs identical Base/SFT local inputs, seeds and budgets. Expected-result matches
+are bounded lexical/numeric proxies; qualitative inspection checks actual work,
+correctness and advisory behavior without an extra judge. T1 uses five same-prefix
+conditions: Continue, Repair, Extended, Help-Base and Help-SFT. LoRA disabling/enabling
+changes only Specialist; Anchor is a separate immutable model. Common continuation
+stops at a candidate with the same new-step allowance. T2 reuses the exact legal
+SFT-side state before Submit/Abort, bills identical sunk generation cost and reports
+future resources separately. No further Help occurs. Its post-hoc outcome difference
+does not establish that a deployed Controller can recognize helpful information.
+Oracle A/B/C/D follow Phase 2B's internal/base/SFT action-set definitions, rather
+than the earlier refinement set naming. No cost proxy enters formal labels.
+
+Completed Phase 2B observes T0 degradation after this single synthetic-data SFT
+configuration and no T1 gain over Base (both13/18, all18 paired rewards equal).
+T2 has3 beneficial/14 neutral/0 harmful single-rollout outcomes; examples include
+answer-format paths and exact-expression scoring. These do not establish learned
+communication selection. No Controller or receiver-driven optimization is justified
+by these results alone. The next diagnostic should improve independent, diverse,
+verified local-task supervision and test copying/context sensitivity before formal
+utility training, preserving this negative result rather than tuning on its cases.
