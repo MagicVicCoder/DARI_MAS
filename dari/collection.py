@@ -97,7 +97,7 @@ def write_targets(path: str | Path, rows: Sequence[ControllerTarget]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             body = asdict(row)
-            body["schema_version"] = 2
+            body["schema_version"] = 3
             handle.write(json.dumps(body, ensure_ascii=False) + "\n")
 
 
@@ -108,7 +108,7 @@ def read_targets(path: str | Path) -> list[ControllerTarget]:
             if not line.strip():
                 continue
             body = json.loads(line)
-            if body.pop("schema_version", None) != 2:
+            if body.pop("schema_version", None) != 3:
                 raise ValueError("Unsupported target schema")
             body["action"]["kind"] = Kind(body["action"]["kind"])
             body["action"] = Action(**body["action"])

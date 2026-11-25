@@ -21,9 +21,9 @@ invalidate_answer explicitly revokes an obsolete answer. Null/missing requests u
 a deterministic fallback with recorded origin/reason. SelfRepair and Help address
 the same dynamic task. Finish returns an existing candidate without another call.
 
-Every valid Specialist stage emits work and draft. Draft fields are target,
-finding, support, change and unresolved; change means a general recommendation,
-not necessarily an error correction. Narrow context includes question/constraints,
+Protocol v3 Specialist output is `{"work":"actual local reasoning","draft":"actionable assistance"}`.
+Draft is plain text; Runtime owns target, session and stage metadata. Draft quota
+counts decoded text tokens, independently of the full generation budget. Narrow context includes question/constraints,
 target/owner, required_refs and direct refs; Wide adds recent global records.
 Expand retains valid private history; invalid expansion retains the last valid
 draft. Submit passes only the draft; Abort sends nothing. Explicit Anchor citation
@@ -144,3 +144,29 @@ Help drafts are submitted; 22 exceed the draft-token limit, and 26/36 requests
 are fallback. These are diagnostic findings, not proof of collaboration benefit
 or failure. Full scores, evaluator sensitivity, resource costs and limitations
 are in the Phase 2A report. The regression suite has 71 passing tests.
+
+## Phase 2A Refinement
+
+Current Anchor history keeps step IDs, reasoning and references, with the current
+candidate separate. Anchor solves the complete original question and proposes
+concrete unresolved tasks; Controller still chooses the action. Specialist acts
+as an independent local solver with separate original-question, evidence,
+Anchor-context and session-private-history partitions. Defaults: three 512-token
+stages and 384-token Draft; refinement counterfactuals use one stage.
+
+Data and Controller checkpoint schema is now 3; historical v1/v2 training data
+and policies require explicit regeneration. Historical experimental outputs remain
+unchanged. Frozen Qwen3 refinement runs (no training or push):
+
+```bash
+python -m dari.refinement setup
+CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r0
+CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r1
+CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r2
+CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r3
+```
+
+GPU placement must be reviewed against available memory. Outputs and the unified
+report are under `outputs/phase2a_refinement/`; R0 replays historical generations,
+R1 reuses original matched baselines, R2 reruns all four downstream controls, and
+R3 uses fixed disjoint development samples. Results are exploratory, not training labels.

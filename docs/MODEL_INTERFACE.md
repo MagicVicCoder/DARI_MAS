@@ -44,3 +44,21 @@ checks. Ordinary-Linear LoRA fixtures are not PEFT checkpoint formats.
 Formal cost labels need calibrated profiles and policy overhead. real_debug uses
 uncalibrated scheduling units with cost_complete=false; latency is not GPU resource
 cost. Budget estimates are guards rather than hard time/resource guarantees.
+
+## Current refinement protocol (v3)
+
+Specialist emits exactly two nonempty strings, work and draft. work contains actual
+local reasoning; draft contains directly usable findings, supporting calculations
+or evidence and remaining uncertainty as needed. Runtime owns all target/session/
+stage metadata. The online parser rejects historical object drafts; a read-only
+legacy parser supports archival inspection. Submit exposes only draft text.
+
+Anchor history serializes only IDs, steps and refs; the current candidate is separate.
+Full original questions always reach Specialist, separately from selected evidence,
+fallible Anchor reasoning and isolated session-private outputs. Narrow/Wide selection
+remains deterministic and is chosen before scoring. Draft text cap defaults to 384;
+full output caps default to [512,512,512]. Experiment branches use a single stage.
+Input features track exact partition value spans; output Draft pooling excludes JSON
+string quotes. SFT/DPO data and Controller checkpoints use schema 3. Regenerate
+older data/policies rather than silently mixing incompatible representations.
+The Phase 2A sections above describe the historical experimental protocol.

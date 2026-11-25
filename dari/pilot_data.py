@@ -9,7 +9,7 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def prepare(root="data/phase2a", output="outputs/phase2a", seed=20261124):
+def prepare(root="data/phase2a", output="outputs/phase2a", seed=20261124, per_dataset=20, exclude=()):
     import pyarrow.parquet as pq
     root, output = Path(root), Path(output)
     rng = random.Random(seed)
@@ -17,25 +17,28 @@ def prepare(root="data/phase2a", output="outputs/phase2a", seed=20261124):
     datasets = {name: [json.loads(line) for line in path.read_text().splitlines()] for name, path in files.items() if name != "hotpotqa"}
     datasets["hotpotqa"] = pq.read_table(files["hotpotqa"]).to_pylist()
     samples = []
+    excluded = {(row["dataset"], row["row_index"]) for row in exclude}
     for name, rows in datasets.items():
         if name == "math500":
             # Round robin across subject/difficulty strata, not model behavior.
             groups = {}
             for index, row in enumerate(rows):
+                if (name, index) in excluded:
+                    continue
                 groups.setdefault((row.get("subject", row.get("type", "")), str(row.get("level", ""))), []).append(index)
             for group in groups.values():
                 rng.shuffle(group)
             keys = sorted(groups)
             rng.shuffle(keys)
             selected = []
-            while len(selected) < 20:
+            while len(selected) < per_dataset:
                 for key in keys:
                     if groups[key]:
                         selected.append(groups[key].pop())
-                        if len(selected) == 20:
+                        if len(selected) == per_dataset:
                             break
         else:
-            selected = rng.sample(range(len(rows)), 20)
+            selected = rng.sample([i for i in range(len(rows)) if (name, i) not in excluded], per_dataset)
         for rank, index in enumerate(selected):
             row = rows[index]
             sources = {}
@@ -65,7 +68,8 @@ def prepare(root="data/phase2a", output="outputs/phase2a", seed=20261124):
     if path.exists() and path.read_text() != text:
         raise ValueError("Existing sample manifest differs; do not overwrite an experiment")
     path.write_text(text)
-    (output/"data_manifest.json").write_text(json.dumps({"seed": seed, "target_per_dataset":20,
+    (output/"data_manifest.json").write_text(json.dumps({"seed": seed, "target_per_dataset":per_dataset,
+        "excluded_task_ids":[row["task_id"] for row in exclude],
         "pilot_per_dataset":8, "selection": "uniform seeded without replacement; MATH subject/level round robin",
         "sources": {name: {"path":str(path), "sha256":sha256(path), "rows":len(datasets[name])} for name,path in files.items()},
         "sample_sha256":sha256(output/"samples.jsonl"),

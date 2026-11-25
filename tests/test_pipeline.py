@@ -72,9 +72,8 @@ class PipelineTests(unittest.TestCase):
             tasks, sft = root/"tasks.jsonl", root/"sft.jsonl"
             tasks.write_text(json.dumps({"task_id": "t", "question": "sqrt(x*x), x=-1",
                 "sources": {"p1": "x=-1"}, "gold": "1"})+"\n")
-            response = {"work": "Check sign", "draft": {"target": "s1", "finding": "Correct local result",
-                "support": "A root is nonnegative", "change": "Use 1", "unresolved": ""}}
-            sft.write_text(json.dumps({"schema_version": 1, "input_id": "warm", "prompt": "Check sign",
+            response = {"work": "A root is nonnegative", "draft": "Correct local result: use 1"}
+            sft.write_text(json.dumps({"schema_version": 3, "input_id": "warm", "prompt": "Check sign",
                 "response": json.dumps(response), "synthetic": True})+"\n")
             report = run_alternating(fixture_config(tasks, sft), root/"run", specialist_trainer=tiny_trainer)
             self.assertEqual(report["rounds_completed"], 1)

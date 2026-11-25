@@ -3,30 +3,57 @@
   "debug_policy": "help_expand_submit",
   "seed": 7,
   "runtime": {
-    "experiment_mode": "real_debug", "budget": 2000000, "reference_cost": 1000,
-    "anchor_output": 512, "draft_limit": 256, "max_anchor_steps": 6,
-    "max_decisions": 24, "max_specialist_stages": 3,
-    "stage_output_budgets": [384, 512, 512]
+    "experiment_mode": "real_debug",
+    "budget": 2000000,
+    "reference_cost": 1000,
+    "anchor_output": 512,
+    "draft_limit": 384,
+    "max_anchor_steps": 6,
+    "max_decisions": 24,
+    "max_specialist_stages": 3,
+    "stage_output_budgets": [
+      512,
+      512,
+      512
+    ]
   },
   "backend": {
     "type": "hf",
     "models": {
       "A": {
-        "name_or_path": "/data/models/Qwen3-8B", "dtype": "bfloat16",
-        "device": "cuda:4", "enable_thinking": false, "temperature": 0,
+        "name_or_path": "/data/models/Qwen3-8B",
+        "dtype": "bfloat16",
+        "device": "cuda:4",
+        "enable_thinking": false,
+        "temperature": 0,
         "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03"
       },
       "S": {
-        "name_or_path": "/data/models/Qwen3-8B", "dtype": "bfloat16",
-        "device": "cuda:7", "enable_thinking": false, "temperature": 0,
+        "name_or_path": "/data/models/Qwen3-8B",
+        "dtype": "bfloat16",
+        "device": "cuda:7",
+        "enable_thinking": false,
+        "temperature": 0,
         "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03"
       }
     }
   },
   "profiles": [
-    {"model_id": "A", "unit": "debug_token_units", "uncached_input": 1, "output": 1,
-     "provenance": "Uncalibrated debug scheduling units; not GPU cost", "synthetic": false},
-    {"model_id": "S", "unit": "debug_token_units", "uncached_input": 1, "output": 1,
-     "provenance": "Uncalibrated debug scheduling units; not GPU cost", "synthetic": false}
+    {
+      "model_id": "A",
+      "unit": "debug_token_units",
+      "uncached_input": 1,
+      "output": 1,
+      "provenance": "Uncalibrated debug scheduling units; not GPU cost",
+      "synthetic": false
+    },
+    {
+      "model_id": "S",
+      "unit": "debug_token_units",
+      "uncached_input": 1,
+      "output": 1,
+      "provenance": "Uncalibrated debug scheduling units; not GPU cost",
+      "synthetic": false
+    }
   ]
 }

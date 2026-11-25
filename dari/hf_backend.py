@@ -278,6 +278,8 @@ def output_value_spans(text: str) -> dict[str, tuple[int, int]]:
                         begin += 1
                     _, length = decoder.raw_decode(packet[begin:])
                     result[key] = (pos+begin+1, pos+begin+length-1)
+                elif isinstance(value, str):
+                    result[key] = (pos+1, pos+used-1)
                 else:
                     result[key] = (pos, pos+used)
             pos += used

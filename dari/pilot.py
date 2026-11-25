@@ -109,6 +109,8 @@ class Experiment:
         self.samples = read_rows(Path(self.config["sample_file"]))
         source = {name:hashlib.sha256(Path("dari",name).read_bytes()).hexdigest() for name in
                   ("pilot.py","pilot_data.py","pilot_evaluation.py","runtime.py","context.py","hf_backend.py","schema.py")}
+        if self.config.get("protocol_version", "").startswith("refinement-"):
+            source["refinement.py"] = hashlib.sha256(Path("dari/refinement.py").read_bytes()).hexdigest()
         identity = {"config":self.config,"samples":fingerprint(self.samples),"code":source,
                     "evaluator":EVALUATOR_VERSION}
         self.identity = fingerprint(identity)
@@ -155,7 +157,7 @@ class Experiment:
         for row in rows:
             task=Task(row["task_id"],row["question"],row["sources"])
             seed=self.config["seed"]+row["row_index"]
-            for method in METHODS:
+            for method in self.config.get("methods", METHODS):
                 if (task.task_id,method) in done:
                     continue
                 print(f'E0 {task.task_id} {method}',flush=True)

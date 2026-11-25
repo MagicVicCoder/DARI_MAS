@@ -35,8 +35,7 @@ def write_tiny_model(path):
 
 
 def valid_response(finding):
-    return json.dumps({"work":"Check sign", "draft":{"target":"s1","finding":finding,
-        "support":"Nonnegative root", "change":"Use 1", "unresolved":""}})
+    return json.dumps({"work":"The principal root is nonnegative", "draft": finding + "; use 1"})
 
 
 @unittest.skipUnless(HAS_MODELS, 'Install .[models] for real Transformers/PEFT integration')

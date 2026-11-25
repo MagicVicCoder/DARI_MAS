@@ -14,8 +14,7 @@ def anchor(step="wrong sign", refs=None, answer="-1", goal="check sign"):
 
 
 def specialist(work="PRIVATE SEARCH", target="s1"):
-    return json.dumps(dict(work=work, draft=dict(target=target, finding="use absolute value",
-        support="x is negative", change="answer 1", unresolved="")))
+    return json.dumps(dict(work=work, draft="use absolute value: x is negative, so answer 1"))
 
 
 def make_runtime(anchor_outputs=None, specialist_outputs=None, **config):

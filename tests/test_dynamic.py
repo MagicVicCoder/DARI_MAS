@@ -83,7 +83,7 @@ class DynamicTests(unittest.TestCase):
         state = runtime.initial(fixtures.RuntimeTests().task())
         request = runtime.request_for_action(state, pick(runtime, state, Kind.CONTINUE))
         body = json.loads(request.prompt.split("\n", 1)[1])
-        self.assertEqual(set(body["steps"][0]["help_request"]), {"instruction", "target", "required_refs"})
+        self.assertEqual(set(body["steps"][0]), {"id", "step", "refs"})
 
     def test_real_debug_utility_collection_is_rejected(self):
         from dari.collection import collect_branches

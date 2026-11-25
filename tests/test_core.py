@@ -15,14 +15,14 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(record.answer, "4")
 
     def test_only_draft_is_serialized_for_receiver(self):
-        text = json.dumps({"work": "PRIVATE SEARCH", "draft": {
-            "target": "s1", "finding": "sign error", "support": "x=-1",
-            "change": "use absolute value", "unresolved": ""}})
+        text = json.dumps({"work": "PRIVATE SEARCH", "draft": "x=-1; use absolute value"})
         result = SpecialistRecord.parse(text)
-        self.assertNotIn("PRIVATE", result.draft.to_json())
-        self.assertEqual(result.draft.target, "s1")
+        self.assertNotIn("PRIVATE", result.draft.text)
+        self.assertEqual(result.draft.text, "x=-1; use absolute value")
         with self.assertRaises(ValueError):
-            Draft.parse('{"target":"s1"}')
+            Draft.parse({"target": "s1"})
+        with self.assertRaises(ValueError):
+            SpecialistRecord.parse(json.dumps({"work": "reasoning", "draft": {"target": "s1"}}))
 
     def test_task_has_no_gold_or_reward_field(self):
         task = Task("t1", "What is 2+2?", {"p1": "addition"})
