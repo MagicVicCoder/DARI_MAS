@@ -159,14 +159,26 @@ and policies require explicit regeneration. Historical experimental outputs rema
 unchanged. Frozen Qwen3 refinement runs (no training or push):
 
 ```bash
-python -m dari.refinement setup
 CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r0
-CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r1
+CUDA_VISIBLE_DEVICES=0,1,5 python -m dari.refinement r1
 CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r2
-CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.refinement r3
+CUDA_VISIBLE_DEVICES=0,1,5 python -m dari.pilot --config configs/refinement_r3.json --stage e0 --per-dataset 8
+CUDA_VISIBLE_DEVICES=6,7,2,3 python -m dari.pilot --config configs/refinement_r3_branches.json --stage e1 --per-dataset 8
+python -m dari.refinement_analysis
 ```
 
 GPU placement must be reviewed against available memory. Outputs and the unified
 report are under `outputs/phase2a_refinement/`; R0 replays historical generations,
 R1 reuses original matched baselines, R2 reruns all four downstream controls, and
 R3 uses fixed disjoint development samples. Results are exploratory, not training labels.
+
+Completed refinement: R0 replays 12 historical outputs; R1 reruns 48 conditions;
+R2 runs all 144 branches; R3 runs 72 E0 conditions and 56 branches on 14 eligible
+prefixes. Help delivers 33/36 and 13/14 drafts in R2/R3. Help versus Continue is
+2/32/2 and 1/13/0 wins/ties/losses. Anchor accuracy does not clearly improve;
+some work remains advisory, with real integration failures and harmful assistance.
+The unified report separates these mechanisms, score/parser limitations and the
+small oracle gains. Training and automatic push remain disabled. Use committed
+configs for replay; `refinement setup` is a first-time initializer and rejects
+different existing configurations. R3 branch artifacts link to the immutable R3
+E0 index and prefixes; preserve those links when archiving.

@@ -8,6 +8,18 @@ from tests import test_runtime as fixtures
 
 
 class RefinementTests(unittest.TestCase):
+    def test_external_oracle_gain_excludes_internal_action_coverage(self):
+        from dari.refinement_analysis import collaboration
+        rows=[]
+        methods=['continue','self_repair','self_repair_extended','help_submit']
+        for index, rewards in enumerate([(0,1,1,0),(0,0,1,0),(0,0,0,1)]):
+            for method,reward in zip(methods,rewards):
+                rows.append({'prefix_id':str(index),'method':method,'reward':reward,
+                             'dataset':'gsm8k','f1':None,'submitted':index!=0})
+        summary,_=collaboration(rows,'fixture')
+        self.assertEqual(summary['oracle'],{'A':1,'B':2,'C':2,'D':3,'B-A':1,'D-C':1})
+        self.assertEqual(summary['comparisons']['delivered_conditional']['continue']['n'],2)
+
     def test_draft_pooling_tracks_only_string_content(self):
         text = json.dumps({"work": "private", "draft": 'Compute x="1"; result 1.'})
         begin, end = output_value_spans(text)["draft"]

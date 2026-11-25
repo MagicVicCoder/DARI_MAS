@@ -62,3 +62,13 @@ Input features track exact partition value spans; output Draft pooling excludes 
 string quotes. SFT/DPO data and Controller checkpoints use schema 3. Regenerate
 older data/policies rather than silently mixing incompatible representations.
 The Phase 2A sections above describe the historical experimental protocol.
+
+Completed refinement inference uses independent frozen BF16 Qwen3-8B objects.
+R1/R3 E0 split Anchor across physical GPUs 0/1/5 and keep unused Specialist on
+CPU; paired R2/R3 branches split Anchor across 6/7 and Specialist across 2/3.
+All controls within a paired checkpoint share the latter deployment. Exact maps,
+sampling, tokenizer/template and code identities reside in per-stage manifests.
+The R3 branch directory links to original immutable E0 indexes and prefix files;
+archive links with their targets. A failed concurrent model load occurred before
+R3 branch inference; it produces no scored condition. Subsequent 56 branches
+complete after resource release. This does not calibrate GPU resource costs.

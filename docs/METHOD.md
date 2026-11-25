@@ -101,3 +101,12 @@ Input features track exact partition value spans; output Draft pooling excludes 
 string quotes. SFT/DPO data and Controller checkpoints use schema 3. Regenerate
 older data/policies rather than silently mixing incompatible representations.
 The Phase 2A sections above describe the historical experimental protocol.
+
+Refinement verification completes 48 revised E0 runs on the original pilot,
+144 paired branches on the original 36 prefixes, and 72 E0 runs plus 56 branches
+on 24 new tasks (14 eligible prefixes). Help delivery is 33/36 and 13/14;
+Help versus Continue wins/ties/losses are 2/32/2 and 1/13/0. External oracle
+marginal successes B-A / D-C are 2/1 and 1/1. These are exploratory findings:
+Anchor accuracy does not clearly improve, some private work remains advisory,
+and score/parser artifacts and harmful integration remain. See the unified
+refinement report and immutable traces before interpreting mechanism or training.
