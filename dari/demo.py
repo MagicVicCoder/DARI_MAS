@@ -25,8 +25,7 @@ def build_demo(config_path: str | Path | None = None) -> tuple[Runtime, Task]:
                                "target": "current_step", "required_refs": ["p1"]})
     corrected = dict(step="The principal square root is |x|=1.", refs=["p1"], goal=None, answer="1")
     help_obj = dict(work="Private exploration of sign cases; not sent to Anchor.",
-        draft=dict(target="s1", finding="The missing absolute value changes the result.",
-                   support="At x=-1, sqrt(x*x) is nonnegative.", change="Use |x| and answer 1.", unresolved=""))
+        draft="At x=-1, the principal square root is nonnegative. Use |x| and answer 1.")
     backend = ScriptedBackend({"anchor": [json.dumps(first)] + [json.dumps(corrected)]*16,
         "specialist": [json.dumps(help_obj)]*32})
     rt = Runtime(backend, profiles, RuntimeConfig(**config["runtime"]))

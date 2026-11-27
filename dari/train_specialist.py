@@ -45,7 +45,9 @@ def optimize_specialist(model, codec: PromptCodec, records: list[dict], mode: st
                         lr: float = 2e-5, beta: float = .1, aux_weight: float = .1,
                         max_length: int = 8192, seed: int = 7, reference_model=None,
                         ref_logps: list[tuple[float, float]] | None = None,
-                        auxiliary_records: list[dict] | None = None) -> dict:
+                        auxiliary_records: list[dict] | None = None,
+                        validation_records: list[dict] | None = None,
+                        epoch_order: bool = False, progress_path: str | None = None) -> dict:
     if mode not in {"sft", "dpo"} or not records:
         raise ValueError("Nonempty records and sft/dpo mode required")
     if min(steps, batch_size, accumulation, max_length) <= 0 or not math.isfinite(lr) or lr <= 0:
@@ -83,14 +85,39 @@ def optimize_specialist(model, codec: PromptCodec, records: list[dict], mode: st
         return sum((a-b)-(r[0]-r[1]) for (a, b), r in zip(policy, ref_logps))/len(records)
 
     initial_margin = margin()
+    validation_losses = []
+    def validate():
+        if not validation_records:
+            return None
+        model.eval()
+        values=[]
+        with torch.no_grad():
+            for row in validation_records:
+                batch=response_batch(codec,[(row['prompt'],row['response'])],max_length,device)
+                values.append(float(sft_loss(_forward(model,batch),batch['labels'])))
+        model.train()
+        return sum(values)/len(values)
+    validation_losses.append({'step':0,'loss':validate()})
+    order=list(range(len(records)))
+    rng.shuffle(order)
+    cursor=0
     losses, gradient_norms, update_norms = [], [], []
     start = time.perf_counter()
     model.train()
-    for _ in range(steps):
+    for step_index in range(steps):
         optimizer.zero_grad(set_to_none=True)
         total = 0.
         for _ in range(accumulation):
-            indices = [rng.randrange(len(records)) for _ in range(batch_size)]
+            if epoch_order:
+                indices=[]
+                for _ in range(batch_size):
+                    if cursor==len(order):
+                        rng.shuffle(order)
+                        cursor=0
+                    indices.append(order[cursor])
+                    cursor+=1
+            else:
+                indices = [rng.randrange(len(records)) for _ in range(batch_size)]
             if mode == "sft":
                 batch = batch_for(indices, "response")
                 loss = sft_loss(_forward(model, batch), batch["labels"])
@@ -117,6 +144,12 @@ def optimize_specialist(model, codec: PromptCodec, records: list[dict], mode: st
         optimizer.step()
         update_norms.append(sum(float((parameter.detach()-old).float().square().sum()) for parameter, old in zip(trainable, before))**.5)
         losses.append(total)
+        if validation_records and ((step_index+1)*batch_size*accumulation)%len(records)==0:
+            validation_losses.append({'step':step_index+1,'loss':validate()})
+        if progress_path:
+            with Path(progress_path).open('a') as stream:
+                stream.write(json.dumps({'step':step_index+1,'loss':total,'gradient_norm':gradient_norms[-1],
+                    'learning_rate':lr,'validation':validation_losses[-1]})+'\n')
     seconds = time.perf_counter()-start
     model.eval()
     frozen_unchanged = all(parameter._version == frozen_versions[name] for name, parameter in model.named_parameters() if name in frozen_versions)
@@ -127,6 +160,7 @@ def optimize_specialist(model, codec: PromptCodec, records: list[dict], mode: st
             "trainable_parameters": sum(p.numel() for p in trainable),
             "per_step_loss": losses, "gradient_norms": gradient_norms, "parameter_update_norms": update_norms, "learning_rate": lr,
             "frozen_parameters_unchanged": frozen_unchanged,
+            "validation_losses": validation_losses,
             "optimization_seconds": seconds, "reference_seconds": reference_seconds}
 
 
@@ -134,9 +168,11 @@ def train_from_file(data: str | Path, output: str | Path, model_spec: dict, mode
                     init_adapter: str | None = None, reference_adapter: str | None = None,
                     aux_data: str | Path | None = None, lora_rank: int = 16, lora_alpha: float = 32.,
                     lora_targets: tuple[str, ...] = ("q_proj", "k_proj", "v_proj", "o_proj"),
-                    load_in_4bit: bool = False, gradient_checkpointing: bool = True, **settings) -> dict:
+                    load_in_4bit: bool = False, gradient_checkpointing: bool = True,
+                    lora_dropout: float = 0., validation_data: str | Path | None = None, **settings) -> dict:
     rows = read_records(data, mode)
     aux = read_records(aux_data, "sft") if aux_data else None
+    validation_rows = read_records(validation_data, "sft") if validation_data else None
     for row in rows:
         SpecialistRecord.parse(row["response"] if mode == "sft" else row["chosen"])
     if aux:
@@ -162,6 +198,8 @@ def train_from_file(data: str | Path, output: str | Path, model_spec: dict, mode
                                              revision=spec.get("revision"), trust_remote_code=False)
     codec = PromptCodec(tokenizer, spec.get("chat_template_kwargs", {}), spec.get("chat", True))
     kwargs = {"torch_dtype": dtype, "revision": spec.get("revision"), "trust_remote_code": False}
+    if spec.get('device_map') is not None:
+        kwargs['device_map']=spec['device_map']
     if load_in_4bit:
         if not torch.cuda.is_available():
             raise ValueError("The provided QLoRA loader requires CUDA and bitsandbytes")
@@ -169,7 +207,7 @@ def train_from_file(data: str | Path, output: str | Path, model_spec: dict, mode
             bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=dtype),
             device_map={"": device})
     base = AutoModelForCausalLM.from_pretrained(name, **kwargs)
-    if not load_in_4bit:
+    if not load_in_4bit and spec.get('device_map') is None:
         base.to(device)
     if load_in_4bit:
         base = prepare_model_for_kbit_training(base, use_gradient_checkpointing=gradient_checkpointing)
@@ -192,16 +230,16 @@ def train_from_file(data: str | Path, output: str | Path, model_spec: dict, mode
         model = PeftModel.from_pretrained(base, init_adapter, is_trainable=True)
     else:
         model = get_peft_model(base, LoraConfig(r=lora_rank, lora_alpha=lora_alpha,
-            target_modules=list(lora_targets), lora_dropout=0., bias="none", task_type="CAUSAL_LM"))
+            target_modules=list(lora_targets), lora_dropout=lora_dropout, bias="none", task_type="CAUSAL_LM"))
     # Keep stochastic dropout out of preference/reference comparisons.
     for layer in model.modules():
-        if isinstance(layer, torch.nn.Dropout):
+        if mode=='dpo' and isinstance(layer, torch.nn.Dropout):
             layer.p = 0.
     trainable_names = [n for n, p in model.named_parameters() if p.requires_grad]
     if not trainable_names or any("lora_" not in n or ".default." not in n for n in trainable_names):
         raise ValueError("Only the policy's default LoRA adapter may be trainable")
     metrics = optimize_specialist(model, codec, rows, mode, ref_logps=ref_logps,
-                                  auxiliary_records=aux, **settings)
+                                  auxiliary_records=aux, validation_records=validation_rows, **settings)
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(output, selected_adapters=["default"])

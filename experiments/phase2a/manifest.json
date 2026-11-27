@@ -1,0 +1,98 @@
+{
+  "config": {
+    "protocol_version": "phase2a-v3-exact-fields-complete-answer",
+    "seed": 20261124,
+    "calibration_confirmed": false,
+    "output_dir": "outputs/phase2a",
+    "sample_file": "outputs/phase2a/samples.jsonl",
+    "checkpoint_selection": "first_valid_unfinished_with_all_four_actions_feasible",
+    "continuation_steps": 8,
+    "standard_output": 4096,
+    "context_width": "narrow",
+    "robustness_checkpoints": 8,
+    "rollout_repeats": 2,
+    "runtime": {
+      "experiment_mode": "real_debug",
+      "budget": 10000000,
+      "reference_cost": 1000,
+      "anchor_output": 512,
+      "max_anchor_steps": 8,
+      "max_decisions": 64,
+      "max_specialist_stages": 1,
+      "stage_output_budgets": [
+        512
+      ],
+      "draft_limit": 192,
+      "specialist_input_limit": 20000,
+      "oneshot_output": 512
+    },
+    "backend": {
+      "type": "hf",
+      "models": {
+        "A": {
+          "name_or_path": "/data/models/Qwen3-8B",
+          "dtype": "bfloat16",
+          "enable_thinking": false,
+          "temperature": 0.0,
+          "context_limit": 32768,
+          "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+          "device": "cuda:0"
+        },
+        "S": {
+          "name_or_path": "/data/models/Qwen3-8B",
+          "dtype": "bfloat16",
+          "enable_thinking": false,
+          "temperature": 0.7,
+          "top_p": 0.95,
+          "context_limit": 32768,
+          "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+          "device": "cuda:1"
+        }
+      }
+    },
+    "profiles": [
+      {
+        "model_id": "A",
+        "unit": "debug_token_units",
+        "uncached_input": 1,
+        "output": 1,
+        "provenance": "Uncalibrated debug scheduling proxy only",
+        "synthetic": false
+      },
+      {
+        "model_id": "S",
+        "unit": "debug_token_units",
+        "uncached_input": 1,
+        "output": 1,
+        "provenance": "Uncalibrated debug scheduling proxy only",
+        "synthetic": false
+      }
+    ]
+  },
+  "samples": "225a07ec82e1ec06c2f57d67eeba966f309d9e766c8a5d3087369a2a164f42b9",
+  "code": {
+    "pilot.py": "54ce4f0f342006fb47558ca58dedfa92cd756b13170bcc0aa04a61387bd7b953",
+    "pilot_data.py": "27a27165c3ec6e63d0f8d476b6293c99fad93ba41b518b68eb8035ed78269495",
+    "pilot_evaluation.py": "fd0d8c85b81f9d85b5924aa6b71a62d6f041890473b240282e8848a1e74899ae",
+    "runtime.py": "1da356f30bcd4ed97c310f1de506484cef3ce8fc134cea92d1fbb94fa164f8cc",
+    "context.py": "81c799fe85d06a6730009b39cee5fc61b7c6c6a3df3af6f92a3e8c6b8d732642",
+    "hf_backend.py": "6a15a77d6a1799b038d17c2cc433761d64d4325afb5209ab77c1539517a0b3d9",
+    "schema.py": "8722738a721ffe139f0eabf2ac7c090b68c744ae9d4f29a4678db2549b354b26"
+  },
+  "evaluator": "phase2a-eval-v3-rational-arithmetic",
+  "experiment_id": "06a22c7be887eed72f152da621bad511d270e11e1cf29d80549bff0426d52230",
+  "git_commit": "f982d695f9f20bfc5006365b3a58091e9afd7bf5",
+  "cuda_visible_devices": "0,2",
+  "software": {
+    "torch": "2.10.0+cu128"
+  },
+  "cost_complete": false,
+  "checkpoint_rule": "first_valid_unfinished_with_all_four_actions_feasible",
+  "branch_protocol": {
+    "continue": "one normal Anchor call",
+    "self_repair": "one local-task Anchor call",
+    "self_repair_extended": "one local-task Anchor call plus one integration/refinement call",
+    "help_submit": "one Specialist call plus one Anchor integration call; invalid draft aborts",
+    "common_continuation": "up to 8 new valid Anchor steps after intervention, stop at candidate; retries billed"
+  }
+}

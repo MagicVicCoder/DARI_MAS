@@ -44,3 +44,67 @@ checks. Ordinary-Linear LoRA fixtures are not PEFT checkpoint formats.
 Formal cost labels need calibrated profiles and policy overhead. real_debug uses
 uncalibrated scheduling units with cost_complete=false; latency is not GPU resource
 cost. Budget estimates are guards rather than hard time/resource guarantees.
+
+## Current refinement protocol (v3)
+
+Specialist emits exactly two nonempty strings, work and draft. work contains actual
+local reasoning; draft contains directly usable findings, supporting calculations
+or evidence and remaining uncertainty as needed. Runtime owns all target/session/
+stage metadata. The online parser rejects historical object drafts; a read-only
+legacy parser supports archival inspection. Submit exposes only draft text.
+
+Anchor history serializes only IDs, steps and refs; the current candidate is separate.
+Full original questions always reach Specialist, separately from selected evidence,
+fallible Anchor reasoning and isolated session-private outputs. Narrow/Wide selection
+remains deterministic and is chosen before scoring. Draft text cap defaults to 384;
+full output caps default to [512,512,512]. Experiment branches use a single stage.
+Input features track exact partition value spans; output Draft pooling excludes JSON
+string quotes. SFT/DPO data and Controller checkpoints use schema 3. Regenerate
+older data/policies rather than silently mixing incompatible representations.
+The Phase 2A sections above describe the historical experimental protocol.
+
+Completed refinement inference uses independent frozen BF16 Qwen3-8B objects.
+R1/R3 E0 split Anchor across physical GPUs 0/1/5 and keep unused Specialist on
+CPU; paired R2/R3 branches split Anchor across 6/7 and Specialist across 2/3.
+All controls within a paired checkpoint share the latter deployment. Exact maps,
+sampling, tokenizer/template and code identities reside in per-stage manifests.
+The R3 branch directory links to original immutable E0 indexes and prefix files;
+archive links with their targets. A failed concurrent model load occurred before
+R3 branch inference; it produces no scored condition. Subsequent 56 branches
+complete after resource release. This does not calibrate GPU resource costs.
+
+## Phase 2B adapters and parsing
+
+Training supports optional `validation_data`, `lora_dropout`, epoch-order batches
+and progress JSONL through the existing Specialist trainer; explicit device_map
+allows BF16 layer sharding without an independent training framework. The response
+mask and causal loss remain unchanged. Frozen tensor versions are checked and
+only default LoRA parameters can receive updates. DPO retains dropout-free fixed
+reference behavior; SFT may use configured LoRA dropout.
+
+Runtime syntax repair occurs after actual generation, leaving raw generated tokens,
+pooled hidden vectors and billed usage unchanged. It cannot fabricate a missing
+Draft representation; fixed Phase 2B comparisons do not train a Controller from
+those states. JSON repair is not constrained decoding and does not guarantee valid
+output. Its deterministic audit overhead is recorded separately from generation.
+T0/T1 load the saved adapter with PEFT and freeze it; Base comparisons disable it
+on the same Specialist object. Anchor remains a separate original frozen object.
+The adapter digest, raw traces and split/config identities are archived locally.
+
+The actual Phase 2B adapter contains15,335,424 trainable LoRA parameters; frozen
+backbone tensor versions remain unchanged. Validation response loss is recorded
+before training and after each epoch. The saved adapter is loaded and used for58
+T0/T1 SFT generations and17 paired communication tests. Base disables that adapter
+on the same S object; only A remains an independent original frozen object.
+Training allocator peaks were recorded; inference allocator peaks were not exported
+and must not be inferred from shared GPU snapshots. See per-model raw token/call/
+latency logs and the report's resource limitation before making cost claims.
+Phase 3A wraps the HF backend to record synchronized elapsed call milliseconds as
+`Usage.observed_cost` with unit `serial_execution_ms`. Optional HF forward timing
+records prefill and decode separately during profiling. Allocator peak and forward
+timings are diagnostics. The ledger uses the observed cost where available and the
+fitted deployment profile for budget estimates.
+Phase 3B configures `specialist_role`, `specialist_context`, and
+`integration_mode` in RuntimeConfig. The default directed, guided, direct
+combination retains the original prompts and deployment identity. All modes
+share the same work/draft response schema.

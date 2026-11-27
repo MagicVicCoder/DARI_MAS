@@ -23,7 +23,7 @@ class ControllerConfig:
     numeric_dim: int = 12
     action_numeric_dim: int = 8
     lambda_cost: float = .1
-    schema_version: int = 2
+    schema_version: int = 3
 
 
 class ValueController(nn.Module):

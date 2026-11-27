@@ -26,9 +26,8 @@ class ReceiverBackend(ScriptedBackend):
         else:
             self.actual_specialist_calls += 1
             good = request.seed % 2 == 0
-            obj = {"work": "Check a sign", "draft": {"target": "s1",
-                "finding": "Correct local result" if good else "Wrong local result",
-                "support": "A nonnegative root", "change": "Use 1" if good else "Use -1", "unresolved": ""}}
+            obj = {"work": "A principal root is nonnegative", "draft":
+                "Correct local result: use 1" if good else "Wrong local result: use -1"}
         text = json.dumps(obj)
         features = {k: self._feature(request.role, t) for k, t in request.feature_texts.items()}
         features["output"] = self._feature(request.role, text)

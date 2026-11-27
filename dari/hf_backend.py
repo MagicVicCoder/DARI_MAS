@@ -72,13 +72,19 @@ def _input_device(model):
 class HuggingFaceBackend:
     synthetic = False
 
-    def __init__(self, handles: dict[str, ModelHandle]):
+    def __init__(self, handles: dict[str, ModelHandle], *, share_frozen_base=False):
         if not handles:
             raise ValueError("At least one model handle required")
         if len({id(h.model) for h in handles.values()}) != len(handles):
-            raise ValueError("The same model object cannot be shared across mutable role adapters")
+            if not share_frozen_base or any(
+                h.adapter_id != "base" or hasattr(h.model, "peft_config")
+                for h in handles.values()
+            ):
+                raise ValueError("The same model object requires explicit opt-in and adapter-free base weights")
         self.handles = dict(handles)
         self.last_latency_ms = 0.
+        self.profile_timing = False
+        self.last_forward_timing = {}
         for h in self.handles.values():
             if not isinstance(h.identity, dict) or not h.identity:
                 raise ValueError("Manually loaded models require explicit frozen model/tokenizer identity")
@@ -185,6 +191,7 @@ class HuggingFaceBackend:
         # Fork only the RNGs touched by this model. No persistent sampling state
         # needs to be copied with EpisodeState; seeded branch replay is explicit.
         with torch.random.fork_rng(devices=devices), torch.inference_mode():
+            forward_times = []
             torch.random.default_generator.manual_seed(seed)
             for index in devices:
                 with torch.cuda.device(index):
@@ -195,7 +202,15 @@ class HuggingFaceBackend:
                               use_cache=True, output_hidden_states=True, return_dict=True)
                 if accepts_keep:
                     kwargs["logits_to_keep"] = 1
+                if self.profile_timing:
+                    for index in devices:
+                        torch.cuda.synchronize(index)
+                    forward_started = time.perf_counter()
                 out = h.model(**kwargs)
+                if self.profile_timing:
+                    for index in devices:
+                        torch.cuda.synchronize(index)
+                    forward_times.append((time.perf_counter()-forward_started)*1000)
                 hidden = out.hidden_states[-1][0].detach()
                 if step == 0:
                     for key in request.feature_texts:
@@ -242,6 +257,8 @@ class HuggingFaceBackend:
             if "</think>" in text:
                 text = text.split("</think>", 1)[1].strip()
         self.last_latency_ms = (time.perf_counter()-start_time)*1000
+        self.last_forward_timing = {"prefill_ms":forward_times[0],"decode_forward_ms":sum(forward_times[1:]),
+            "forward_calls":len(forward_times)} if forward_times else {}
         return Generation(text, Usage(request.model_id, len(ids), len(generated), context_tokens=len(ids)), features, self.last_latency_ms, raw_text)
 
 
@@ -278,6 +295,8 @@ def output_value_spans(text: str) -> dict[str, tuple[int, int]]:
                         begin += 1
                     _, length = decoder.raw_decode(packet[begin:])
                     result[key] = (pos+begin+1, pos+begin+length-1)
+                elif isinstance(value, str):
+                    result[key] = (pos+1, pos+used-1)
                 else:
                     result[key] = (pos, pos+used)
             pos += used

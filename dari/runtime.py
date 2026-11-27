@@ -16,6 +16,15 @@ CONTINUE_INSTRUCTION = "Continue reasoning."
 SUBMIT_INSTRUCTION = "Use the fallible local help if useful, then continue."
 
 
+def runtime_identity(config):
+    values = asdict(config)
+    for key, default in (("specialist_role", "directed"), ("specialist_context", "guided"),
+                         ("integration_mode", "direct")):
+        if values[key] == default:
+            del values[key]
+    return values
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     anchor_model: str = "A"
@@ -24,17 +33,28 @@ class RuntimeConfig:
     reference_cost: float = 1000.0
     anchor_output: int = 256
     oneshot_output: int = 480
-    draft_limit: int = 160
+    draft_limit: int = 384
     specialist_input_limit: int = 8192
     max_anchor_steps: int = 16
     max_decisions: int = 128
     max_specialist_stages: int = 3
-    stage_output_budgets: tuple[int, ...] = (256, 384, 384)
+    stage_output_budgets: tuple[int, ...] = (512, 512, 512)
     wide_history: int = 4
     controller_history: int = 8
     experiment_mode: str = "synthetic"
+    generate_help_request: bool = True
+    repair_protocol_json: bool = False
+    specialist_role: str = "directed"
+    specialist_context: str = "guided"
+    integration_mode: str = "direct"
 
     def __post_init__(self):
+        if self.specialist_role not in {"directed", "check", "recompute", "autonomous", "solver"}:
+            raise ValueError("Invalid Specialist role")
+        if self.specialist_context not in {"guided", "independent", "compare"}:
+            raise ValueError("Invalid Specialist context")
+        if self.integration_mode not in {"direct", "critical", "comparison"}:
+            raise ValueError("Invalid integration mode")
         if self.experiment_mode not in {"synthetic", "real_debug", "formal"}:
             raise ValueError("Invalid experiment mode")
         if self.max_specialist_stages < 1 or len(self.stage_output_budgets) < self.max_specialist_stages or any(type(n) is not int or n <= 0 for n in self.stage_output_budgets):
@@ -66,6 +86,7 @@ class EpisodeState:
     help_count: int = 0
     help_request: HelpRequest | None = None
     wide_history: int = 4
+    generate_help_request: bool = True
     decision_log: list[dict] = field(default_factory=list)
     assistance_log: list[dict] = field(default_factory=list)
     terminal: bool = False
@@ -104,7 +125,8 @@ class Runtime:
     def initial(self, task: Task, seed: int = 0) -> EpisodeState:
         if any(k == "task" or k.startswith(("s", "g", "h")) and k[1:].isdigit() for k in task.sources):
             raise ValueError("Source IDs conflict with reserved task/step/goal/help IDs")
-        state = EpisodeState(task, CostLedger(self.profiles), self.config.budget, seed=seed, wide_history=self.config.wide_history)
+        state = EpisodeState(task, CostLedger(self.profiles), self.config.budget, seed=seed,
+                             wide_history=self.config.wide_history, generate_help_request=self.config.generate_help_request)
         if self.config.experiment_mode == "real_debug":
             state.ledger.unmeasured_overheads.append("uncalibrated_debug_resource_cost")
         self._anchor(state, CONTINUE_INSTRUCTION)
@@ -137,20 +159,34 @@ class Runtime:
         pack = build_pack(state, session.action.target, session.action.width)
         cap = (self.config.oneshot_output if session.action.quota == "oneshot" else
                self.config.stage_output_budgets[min(session.stage, self.config.max_specialist_stages-1)])
+        selected = spans(state)
         body = {"dynamic_request": state.help_request.instruction if state.help_request else "Inspect the unresolved reasoning",
                 "stage_instruction": "Extend previous local reasoning" if session.stage else "Initialize local reasoning",
-                "selected_context_ids": list(pack.span_ids), "packet": json.loads(pack.text),
+                "selected_context_ids": list(pack.span_ids),
+                "original_question_and_constraints": state.task.question,
+                "relevant_source_evidence": {key:selected[key] for key in pack.span_ids if key in state.task.sources or key in state.artifacts},
+                "anchor_reasoning_context": {key:selected[key] for key in pack.span_ids if key not in state.task.sources and key not in state.artifacts},
                 "max_total_output_tokens": cap, "max_draft_tokens": self.config.draft_limit,
                 "previous_private_outputs": session.private_outputs}
-        instruction = ("Return JSON {work: private local analysis, draft: {target, finding, support, change, unresolved}}. "
-                  "All draft fields must be strings. Copy packet.target exactly into draft.target. "
-                  "All fields count toward total output budget. Produce a complete revisable draft.\n"
-                  )
-        tracked = {("packet", "task"): "task"}
-        tracked.update({("packet", "context", key): key for key in pack.span_ids})
+        instruction = ("You are an independent local reasoning agent assisting the Anchor. Solve the dynamic assistance task yourself. "
+            "Perform the calculation, derivation, evidence comparison or other requested reasoning; do not merely describe what Anchor should do. "
+            "The original question and source evidence are primary; Anchor reasoning is fallible and may be incomplete or wrong. "
+            "Read all original constraints before claiming information is missing. Provide concrete results or verified partial progress with uncertainty. "
+            "Return exactly one JSON object with two string fields: work and draft. "
+            "In work write your actual local solution reasoning, not a label, placeholder or task restatement. "
+            "In draft communicate the useful result with its necessary supporting calculation/evidence; avoid repeating work verbatim. "
+            "No target/session metadata is generated. Both strings and JSON syntax count toward total output budget; "
+            "draft_max_tokens applies only to decoded draft text. Use valid JSON escaping, or plain mathematical notation to avoid invalid backslashes.\n")
+        tracked = {("original_question_and_constraints",): "task"}
+        tracked.update({("relevant_source_evidence" if key in state.task.sources or key in state.artifacts else
+                         "anchor_reasoning_context", key): key for key in pack.span_ids})
         prompt = encode_with_spans(body, tracked, instruction)
-        selected = spans(state)
         requested = {i: selected[i] for i in pack.span_ids}
+        if self.config.specialist_role != "directed" or self.config.specialist_context != "guided":
+            from .collaboration_modes import configure_specialist
+            instruction, tracked, requested = configure_specialist(
+                self.config, state, body, instruction, tracked, requested)
+            prompt = encode_with_spans(body, tracked, instruction)
         requested["task"] = state.task.question
         return GenerationRequest(self.config.specialist_model, "specialist", prompt.text, cap,
                                  state.calls["specialist"], requested, state.seed, prompt.feature_spans)
@@ -173,12 +209,13 @@ class Runtime:
         if action.kind == Kind.SUBMIT:
             if state.help is None or state.help.draft is None:
                 raise ValueError("Submit requires a complete current draft")
-            payload = (state.help.help_id, state.help.draft.to_json())
+            payload = (state.help.help_id, state.help.draft.text)
             instruction = SUBMIT_INSTRUCTION
         prompt = anchor_input(state, instruction, payload)
         texts = {"task": state.task.question, **spans(state)}
         if state.candidate is not None:
             texts["candidate"] = state.candidate
+        texts = {key:value for key,value in texts.items() if key in prompt.feature_spans}
         return GenerationRequest(self.config.anchor_model, "anchor", prompt.text, self.config.anchor_output,
                                  state.calls["anchor"], texts, state.seed, prompt.feature_spans)
 
@@ -194,7 +231,7 @@ class Runtime:
             result = [Action(Kind.ABORT)]
             session = state.help
             if session.draft is not None:
-                payload = (session.help_id, session.draft.to_json())
+                payload = (session.help_id, session.draft.text)
                 if self._anchor_reserve(state, payload) <= state.remaining:
                     result.insert(0, Action(Kind.SUBMIT))
                 if session.action.quota == "short" and session.stage < self.config.max_specialist_stages:
@@ -236,8 +273,10 @@ class Runtime:
 
     def _anchor(self, state: EpisodeState, instruction: str,
                 payload: tuple[str, str] | None = None, payload_feature: Feature | None = None) -> None:
+        last_error = None
         for attempt in range(2):
-            packet = anchor_input(state, instruction + (" Output a shorter valid JSON record." if attempt else ""), payload)
+            correction = (" Previous output was invalid: " + last_error + ". Return a complete valid JSON record with exactly the specified fields." if last_error else "")
+            packet = anchor_input(state, instruction + correction, payload)
             prompt = packet.text
             if len(state.steps) >= self.config.max_anchor_steps:
                 self._terminate(state, "step_limit")
@@ -248,6 +287,7 @@ class Runtime:
             feature_texts = {"task": state.task.question, **spans(state)}
             if state.candidate is not None:
                 feature_texts["candidate"] = state.candidate
+            feature_texts = {key:value for key,value in feature_texts.items() if key in packet.feature_spans}
             request = GenerationRequest(self.config.anchor_model, "anchor", prompt,
                                         self.config.anchor_output, state.calls["anchor"], feature_texts, state.seed, packet.feature_spans)
             if not self.fits_context(request):
@@ -261,7 +301,11 @@ class Runtime:
             try:
                 if generation.usage.output_tokens > request.max_new_tokens:
                     raise ValueError("Anchor output exceeds quota")
-                record = AnchorRecord.parse(generation.text)
+                protocol_text = generation.text
+                if self.config.repair_protocol_json:
+                    from .protocol_json import repair_json
+                    protocol_text, _ = repair_json(protocol_text)
+                record = AnchorRecord.parse(protocol_text)
                 known = set(spans(state)) | ({payload[0]} if payload else set())
                 if any(ref not in known for ref in record.refs):
                     raise ValueError("Unknown Anchor reference")
@@ -273,6 +317,7 @@ class Runtime:
                         raise ValueError("Unknown assistance target or required reference")
                     record = replace(record, help_request=replace(req, target=target))
             except ValueError as exc:
+                last_error = str(exc)
                 state.events.append(CallEvent("anchor", prompt, generation.text, False, str(exc), asdict(generation.usage), generation.latency_ms, generation.raw_text))
                 continue
             refs = list(dict.fromkeys(record.refs))
@@ -330,13 +375,15 @@ class Runtime:
         try:
             if generation.usage.output_tokens > request.max_new_tokens:
                 raise ValueError("Specialist output exceeds quota")
-            parsed = SpecialistRecord.parse(generation.text)
-            if parsed.draft.target != session.action.target:
-                raise ValueError("Specialist answered a different target")
-            if self.backend.count_text_tokens(request.model_id, parsed.draft.to_json()) > self.config.draft_limit:
+            protocol_text = generation.text
+            if self.config.repair_protocol_json:
+                from .protocol_json import repair_json
+                protocol_text, _ = repair_json(protocol_text)
+            parsed = SpecialistRecord.parse(protocol_text)
+            if self.backend.count_text_tokens(request.model_id, parsed.draft.text) > self.config.draft_limit:
                 raise ValueError("Draft payload exceeds quota")
             session.draft = parsed.draft
-            session.private_outputs.append(generation.text)
+            session.private_outputs.append(protocol_text)
         except ValueError as exc:
             error = str(exc)
         for key in ("output", "draft"):
@@ -363,14 +410,19 @@ class Runtime:
         elif action.kind in (Kind.SUBMIT, Kind.ABORT):
             session = state.help
             assert session is not None
-            payload = (session.help_id, session.draft.to_json()) if action.kind == Kind.SUBMIT and session.draft else None
+            payload = (session.help_id, session.draft.text) if action.kind == Kind.SUBMIT and session.draft else None
             feature = state.features.get("helper_draft")
             state.assistance_log.append({"help_id": session.help_id, "request": state.help_request.__dict__ if state.help_request else None,
-                                         "action": action.kind.value, "draft": session.draft.to_json() if session.draft else None,
+                                         "action": action.kind.value, "draft": session.draft.text if session.draft else None,
                                          "stages": session.stage, "submitted": payload is not None})
             state.help = None
             state.features = {k: v for k, v in state.features.items() if not k.startswith("helper_")}
-            self._anchor(state, SUBMIT_INSTRUCTION if payload else CONTINUE_INSTRUCTION, payload, feature)
+            instruction = SUBMIT_INSTRUCTION if payload else CONTINUE_INSTRUCTION
+            if payload and self.config.integration_mode == "critical":
+                instruction += " Check the draft against the original evidence. Adopt, correct or reject its substantive claims."
+            elif payload and self.config.integration_mode == "comparison":
+                instruction += " Compare the draft with your current conclusion. Resolve substantive conflicts using the original evidence."
+            self._anchor(state, instruction, payload, feature)
         if not state.terminal and state.decisions >= self.config.max_decisions:
             self._terminate(state, "decision_limit")
         return state

@@ -15,7 +15,7 @@ def write_records(path: str | Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as stream:
         for row in rows:
-            stream.write(json.dumps({**row, "schema_version": 1}, ensure_ascii=False)+"\n")
+            stream.write(json.dumps({**row, "schema_version": 3}, ensure_ascii=False)+"\n")
 
 
 def read_records(path: str | Path, mode: str) -> list[dict]:
@@ -27,7 +27,7 @@ def read_records(path: str | Path, mode: str) -> list[dict]:
             if not line.strip():
                 continue
             row = json.loads(line)
-            if row.pop("schema_version", None) != 1 or type(row.get("synthetic")) is not bool:
+            if row.pop("schema_version", None) != 3 or type(row.get("synthetic")) is not bool:
                 raise ValueError(f"Line {number}: version and explicit synthetic provenance required")
             fields = ("prompt", "response") if mode == "sft" else ("prompt", "chosen", "rejected")
             if any(not isinstance(row.get(k), str) or not row[k].strip() for k in fields):

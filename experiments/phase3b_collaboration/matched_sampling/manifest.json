@@ -1,0 +1,243 @@
+{
+  "config": {
+    "protocol_version": "phase3a-v1",
+    "seed": 20261127,
+    "calibration_confirmed": true,
+    "output_dir": "outputs/phase3a",
+    "sample_file": "outputs/phase2b/t1/samples.jsonl",
+    "checkpoint_selection": "first_valid_unfinished_with_all_four_actions_feasible",
+    "continuation_steps": 8,
+    "standard_output": 4096,
+    "context_width": "narrow",
+    "robustness_checkpoints": 8,
+    "rollout_repeats": 2,
+    "runtime": {
+      "experiment_mode": "real_debug",
+      "budget": 240000,
+      "reference_cost": 10000.0,
+      "anchor_output": 512,
+      "max_anchor_steps": 8,
+      "max_decisions": 64,
+      "max_specialist_stages": 1,
+      "stage_output_budgets": [
+        512,
+        512
+      ],
+      "draft_limit": 384,
+      "specialist_input_limit": 20000,
+      "oneshot_output": 512,
+      "repair_protocol_json": true
+    },
+    "backend": {
+      "type": "hf",
+      "models": {
+        "A": {
+          "name_or_path": "/data/models/Qwen3-8B",
+          "dtype": "bfloat16",
+          "enable_thinking": false,
+          "temperature": 0.0,
+          "context_limit": 32768,
+          "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+          "device_map": {
+            "model.embed_tokens": 0,
+            "model.layers.0": 0,
+            "model.layers.1": 0,
+            "model.layers.2": 0,
+            "model.layers.3": 0,
+            "model.layers.4": 0,
+            "model.layers.5": 0,
+            "model.layers.6": 0,
+            "model.layers.7": 0,
+            "model.layers.8": 0,
+            "model.layers.9": 0,
+            "model.layers.10": 0,
+            "model.layers.11": 0,
+            "model.layers.12": 0,
+            "model.layers.13": 0,
+            "model.layers.14": 0,
+            "model.layers.15": 0,
+            "model.layers.16": 0,
+            "model.layers.17": 0,
+            "model.layers.18": 1,
+            "model.layers.19": 1,
+            "model.layers.20": 1,
+            "model.layers.21": 1,
+            "model.layers.22": 1,
+            "model.layers.23": 1,
+            "model.layers.24": 1,
+            "model.layers.25": 1,
+            "model.layers.26": 1,
+            "model.layers.27": 1,
+            "model.layers.28": 1,
+            "model.layers.29": 1,
+            "model.layers.30": 1,
+            "model.layers.31": 1,
+            "model.layers.32": 1,
+            "model.layers.33": 1,
+            "model.layers.34": 1,
+            "model.layers.35": 1,
+            "model.norm": 1,
+            "lm_head": 1
+          }
+        },
+        "S": {
+          "name_or_path": "/data/models/Qwen3-8B",
+          "dtype": "bfloat16",
+          "enable_thinking": false,
+          "temperature": 0.0,
+          "top_p": 1.0,
+          "context_limit": 32768,
+          "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+          "device_map": {
+            "model.embed_tokens": 2,
+            "model.layers.0": 2,
+            "model.layers.1": 2,
+            "model.layers.2": 2,
+            "model.layers.3": 2,
+            "model.layers.4": 2,
+            "model.layers.5": 2,
+            "model.layers.6": 2,
+            "model.layers.7": 2,
+            "model.layers.8": 2,
+            "model.layers.9": 2,
+            "model.layers.10": 2,
+            "model.layers.11": 2,
+            "model.layers.12": 2,
+            "model.layers.13": 2,
+            "model.layers.14": 2,
+            "model.layers.15": 2,
+            "model.layers.16": 2,
+            "model.layers.17": 2,
+            "model.layers.18": 3,
+            "model.layers.19": 3,
+            "model.layers.20": 3,
+            "model.layers.21": 3,
+            "model.layers.22": 3,
+            "model.layers.23": 3,
+            "model.layers.24": 3,
+            "model.layers.25": 3,
+            "model.layers.26": 3,
+            "model.layers.27": 3,
+            "model.layers.28": 3,
+            "model.layers.29": 3,
+            "model.layers.30": 3,
+            "model.layers.31": 3,
+            "model.layers.32": 3,
+            "model.layers.33": 3,
+            "model.layers.34": 3,
+            "model.layers.35": 3,
+            "model.norm": 3,
+            "lm_head": 3
+          }
+        }
+      }
+    },
+    "profiles": [
+      {
+        "model_id": "A",
+        "unit": "serial_execution_ms",
+        "uncached_input": 0.0,
+        "output": 67.82287343467878,
+        "cached_input": 0.0,
+        "prefill_square": 9.80785516645829e-05,
+        "decode_context": 0.0,
+        "call_overhead": 412.05846280750455,
+        "provenance": "Phase3A synchronized measured serial call wall ms; independent profiling fit, shared4090 deployment; not GPU resource-ms",
+        "synthetic": false
+      },
+      {
+        "model_id": "S",
+        "unit": "serial_execution_ms",
+        "uncached_input": 0.04527593943876297,
+        "output": 68.48803092290787,
+        "cached_input": 0.0,
+        "prefill_square": 2.2789307117361593e-05,
+        "decode_context": 0.0012183058300871327,
+        "call_overhead": 281.55388992877545,
+        "provenance": "Phase3A synchronized measured serial call wall ms; independent profiling fit, shared4090 deployment; not GPU resource-ms",
+        "synthetic": false
+      }
+    ],
+    "methods": [
+      "dari_anchor_only"
+    ],
+    "observation": {
+      "anchor_dim": 4096,
+      "specialist_dim": 4096
+    }
+  },
+  "evaluator": "phase2b-v1-single-final-math-span",
+  "conditions": [
+    "directed",
+    "autonomous_independent"
+  ],
+  "selection_seed": 20261128,
+  "prefixes": [
+    "outputs/phase3a/collection/dev/gsm8k_32/6240185cc583c81d591fea14fead548872c334f349351a9cd84a8db63651b8ac/prefix.pt",
+    "outputs/phase3a/collection/train/gsm8k_638/3712867196b04a4fb82b38c61e89552f38907172091f8a1ff455bd3404924972/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/algebra/170.json/d73def6586d158c8648f04c4308bd1dc6efa70662dece69bc51c6d0ac124d098/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/precalculus/1146.json/a0a8518651d2d1db1de30a56e2ab6606dd3b5052860066ab77b066187e35f9e8/prefix.pt",
+    "outputs/phase3a/collection/dev/math500_test/precalculus/1289.json/2c03c64766a272cb0e9567e38fc8a1a49062caaa434bf013379e0857533f9beb/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/prealgebra/996.json/357ac33db85bfde681d44cc77a7b393fcadb22872806924f99794ba3dec47489/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/algebra/849.json/bb8baa88b6fdaa61e659ad0e61d7fcaabde3bf57dbac8fe63756f5ea3202692b/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/algebra/1343.json/a9f8659c17858f94f2bd290941b8770ee8c1495cdd39be9ead8371d8ef7049bb/prefix.pt",
+    "outputs/phase3a/collection/train/gsm8k_565/bdc0385589949ee30d1a34562139a67e1090b9160104fbb146201c205d490ccb/prefix.pt",
+    "outputs/phase3a/collection/train/hotpotqa_5a771ead55429966f1a36c7c/647bcd72bd56cbb0ec2b1cbb14d6725852ff5aed9c6e2135337c920c1cf15d88/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/prealgebra/1865.json/44807058c560bd560e76f3719cdaaafddd1b629f2642dca2d35a15ae651a09a0/prefix.pt",
+    "outputs/phase3a/collection/train/gsm8k_80/a6e23569039c82e5e7209db05aded0d230dff035eff389756b134e793676cf07/prefix.pt",
+    "outputs/phase3a/collection/dev/hotpotqa_5a73cad5554299623ed4ac5e/9d9d49efcc05aed1b363bf1ce49b566f2437eeb391574e8e5640df77fff2678d/prefix.pt",
+    "outputs/phase3a/collection/train/gsm8k_598/d6e007f8b1da94e6476ca273584ef216eae2648435e55d29495cf26b99d6a537/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/intermediate_algebra/362.json/9d4ffd1f18de85488feb7e4632ce0e05f0ccdfbc5c5046594979591329726829/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/intermediate_algebra/991.json/e1a232d95720eaef2d43c917016179e873abce1de8dba3cbcc642d7fb03423fc/prefix.pt",
+    "outputs/phase3a/collection/train/math500_test/precalculus/323.json/f49a7ecb80661749d2be850c06afc22dcab7c1c177bf944c95f45831dbd10eef/prefix.pt",
+    "outputs/phase3a/collection/train/hotpotqa_5ab45a0b5542991779162c7e/fa3d97c83ba8f8106107496b7d40974817f90868c24d9dc532c162253de61e43/prefix.pt"
+  ],
+  "backend": {
+    "engine": "hf-cached-forward-v2",
+    "representation": "final-hidden-named-ranges-v2",
+    "models": {
+      "A": {
+        "identity": {
+          "model": "/data/models/Qwen3-8B",
+          "revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+          "dtype": "bfloat16",
+          "tokenizer": "871466a28ca69fc737e5e467f409dc3297222733de577a261748b596c288d2d6",
+          "chat_template": "41d5929bf73796beb66809ac700b2cf3ff81694f933e5c14d52b7fd6963c947d",
+          "chat": true,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          },
+          "model_kwargs": {}
+        },
+        "context_limit": 32768,
+        "temperature": 0.0,
+        "top_p": 1.0
+      },
+      "S": {
+        "identity": {
+          "model": "/data/models/Qwen3-8B",
+          "revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+          "dtype": "bfloat16",
+          "tokenizer": "871466a28ca69fc737e5e467f409dc3297222733de577a261748b596c288d2d6",
+          "chat_template": "41d5929bf73796beb66809ac700b2cf3ff81694f933e5c14d52b7fd6963c947d",
+          "chat": true,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          },
+          "model_kwargs": {}
+        },
+        "context_limit": 32768,
+        "temperature": 0.0,
+        "top_p": 1.0
+      }
+    },
+    "adapters": {
+      "A": "base",
+      "S": "base"
+    },
+    "measurement_unit": "serial_execution_ms",
+    "measurement": "synchronized call wall time; model loading excluded"
+  },
+  "cost_note": "Actual serial milliseconds. Phase 3A admission estimator used provisionally on new placement.",
+  "cuda_devices": "0,3,4,6"
+}

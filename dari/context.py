@@ -1,5 +1,5 @@
 """Explicit source selection and prompt assembly; no generative summarizer."""
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 import json
 from typing import TYPE_CHECKING
 
@@ -97,9 +97,7 @@ def build_pack(state: "EpisodeState", target: str, width: str) -> ContextPack:
 def anchor_input(state: "EpisodeState", instruction: str, temporary_help: tuple[str, str] | None = None) -> PromptPacket:
     history = []
     for step in state.steps:
-        record = asdict(step.record)
-        if record["help_request"] is not None:
-            record["help_request"] = {key: record["help_request"][key] for key in ("instruction", "target", "required_refs")}
+        record = {"step": step.record.step, "refs": step.record.refs}
         history.append({"id": step.step_id, **record})
     body = {"task": state.task.question, "sources": state.task.sources,
             "steps": history,
@@ -108,16 +106,36 @@ def anchor_input(state: "EpisodeState", instruction: str, temporary_help: tuple[
         body["temporary_help"] = {temporary_help[0]: temporary_help[1]}
     rule = ("Return one JSON object: step (new reasoning text), refs (at most 4 existing IDs), "
             "goal (active subgoal or null), answer (complete answer as a JSON string or null, never a number or boolean), "
-            "help_request (null or {instruction: an open-ended local task, target: current_step or an existing ID, required_refs: existing IDs}), "
+            + ("help_request (null or {instruction: an open-ended local task, target: current_step or an existing ID, required_refs: existing IDs}), " if state.generate_help_request else "") +
             "invalidate_answer (boolean; true revokes an obsolete candidate before applying answer). "
+            "Make substantive new progress each step; do not merely restate plans or repeat calculations. "
+            "When solved, set answer to the concise final result, not an explanation; use standard LaTeX for mathematical expressions. "
+            "The answer string must contain the final value itself, not a JSON object or an encoded JSON document. "
+            "Set answer ONLY when the ORIGINAL QUESTION is fully solved; intermediate results belong in step with answer=null. "
+            "Do not emit id or any other extra fields: history IDs are assigned by Runtime, not by you. "
+            "Use refs=[] if citing no provided ID; never invent numeric references such as '1'. "
+            "If unfinished, solve a concrete part now. Use only existing source IDs. "
+            + ("Request help only for a genuinely unresolved task; do not repeat an already completed request. " if state.generate_help_request else "") +
             "External help is fallible. Reference its ID only if retaining its evidence. ")
+    rule += ("Reason naturally about the ORIGINAL QUESTION. Each checkpoint may contain several connected deductions; "
+             "actually calculate or infer a result, rather than outputting a plan. Check previous conclusions against the original evidence. "
+             "If solved, answer the complete original question now; do not leave a solved result only in step. "
+             "Use plain notation or properly double-escaped JSON backslashes. ")
+    if state.generate_help_request:
+        rule += ("If unfinished, propose a concrete unresolved local reasoning task in help_request whenever one can be identified. "
+                 "This is only a proposal; Controller decides whether any assistance is invoked. "
+                 "A proposal does not require external help. goal is the unresolved question; instruction specifies useful work to solve it. "
+                 "Avoid generic checking if a specific calculation, relation, alternative or evidence issue exists. "
+                 "Use null when solved or when no meaningful local task exists. Never request a task already completed in history. ")
+    if state.task.task_id.startswith(("HumanEval/", "LiveCodeBench/")):
+        rule += (" For this programming task, the final answer must contain the entire executable Python "
+                 "program following the task's input and output contract. Encode line breaks inside the JSON string.")
     tracked = {("task",): "task", ("candidate",): "candidate"}
     tracked.update({("sources", key): key for key in state.task.sources})
     tracked.update({("evidence", key): key for key in state.artifacts})
     for i, step in enumerate(state.steps):
         tracked[("steps", i, "step")] = step.step_id
-        if step.record.goal:
-            tracked[("steps", i, "goal")] = "g"+step.step_id[1:]
+
     return encode_with_spans(body, tracked, rule+instruction+"\n")
 
 

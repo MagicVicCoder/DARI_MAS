@@ -77,23 +77,13 @@ class AnchorRecord:
 
 @dataclass(frozen=True)
 class Draft:
-    target: str
-    finding: str
-    support: str
-    change: str
-    unresolved: str
+    text: str
 
     @classmethod
     def parse(cls, text: str) -> Draft:
-        obj = object_json(text, {"target", "finding", "support", "change", "unresolved"})
-        if any(not isinstance(v, str) for v in obj.values()):
-            raise ValueError("All draft fields must be text")
-        if any(not obj[k].strip() for k in ("target", "finding", "support", "change")):
-            raise ValueError("Draft requires target, finding, support and change")
-        return cls(**obj)
-
-    def to_json(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False, separators=(",", ":"))
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("Draft must be nonempty assistance text")
+        return cls(text)
 
 
 @dataclass(frozen=True)
@@ -104,9 +94,22 @@ class SpecialistRecord:
     @classmethod
     def parse(cls, text: str) -> SpecialistRecord:
         obj = object_json(text, {"work", "draft"})
-        if not isinstance(obj["work"], str):
-            raise ValueError("Private work must be text")
-        return cls(obj["work"], Draft.parse(json.dumps(obj["draft"], ensure_ascii=False)))
+        if not isinstance(obj["work"], str) or not obj["work"].strip():
+            raise ValueError("Private work must be nonempty text")
+        if not isinstance(obj["draft"], str):
+            raise ValueError("Specialist schema v3 requires a string draft; legacy objects are incompatible")
+        return cls(obj["work"], Draft.parse(obj["draft"]))
+
+
+def legacy_specialist_output(text: str) -> dict:
+    """Read-only historical analysis, never an alternate online generation parser."""
+    obj = object_json(text, {"work", "draft"})
+    required = {"target", "finding", "support", "change", "unresolved"}
+    if not isinstance(obj["work"], str) or not isinstance(obj["draft"], dict) or set(obj["draft"]) != required:
+        raise ValueError("Invalid historical Specialist output")
+    if any(not isinstance(value, str) for value in obj["draft"].values()):
+        raise ValueError("Historical draft fields must be text")
+    return obj
 
 
 class Kind(str, Enum):

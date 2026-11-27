@@ -69,6 +69,20 @@ class SpecialistTrainerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "provenance|synthetic"):
                 read_records(path, "sft")
 
+    def test_epoch_order_validation_and_progress_do_not_update_frozen_weights(self):
+        with tempfile.TemporaryDirectory() as folder:
+            progress=Path(folder)/'progress.jsonl'
+            before=self.model.q_proj.base.weight.detach().clone()
+            result=optimize_specialist(self.model,self.codec,
+                [{'prompt':'x','response':'a'},{'prompt':'y','response':'b'}],mode='sft',
+                steps=2,batch_size=1,accumulation=2,epoch_order=True,
+                validation_records=[{'prompt':'z','response':'c'}],progress_path=str(progress),max_length=100)
+            self.assertEqual([r['step'] for r in result['validation_losses']],[0,1,2])
+            self.assertTrue(all(math.isfinite(r['loss']) for r in result['validation_losses']))
+            self.assertEqual(len(progress.read_text().splitlines()),2)
+            self.assertTrue(torch.equal(before,self.model.q_proj.base.weight))
+            self.assertTrue(result['frozen_parameters_unchanged'])
+
 
 if __name__ == "__main__":
     unittest.main()

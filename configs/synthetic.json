@@ -2,22 +2,49 @@
   "seed": 7,
   "backend": {
     "type": "scripted",
-    "dimensions": {"anchor": 12, "specialist": 9},
+    "dimensions": {
+      "anchor": 12,
+      "specialist": 9
+    },
     "outputs": {
       "anchor": [
         "{\"step\":\"Assume sqrt(x*x)=x, hence -1.\",\"refs\":[\"p1\"],\"goal\":\"Check sign.\",\"answer\":\"-1\"}",
         "{\"step\":\"The principal square root is |x|=1.\",\"refs\":[\"h1\"],\"goal\":null,\"answer\":\"1\"}"
       ],
       "specialist": [
-        "{\"work\":\"Check the sign locally.\",\"draft\":{\"target\":\"s1\",\"finding\":\"The absolute value is missing.\",\"support\":\"A square root is nonnegative.\",\"change\":\"Use |x|=1.\",\"unresolved\":\"\"}}"
+        "{\"work\": \"The principal root is nonnegative; abs(-1)=1.\", \"draft\": \"Use abs(x)=1, because the principal root is nonnegative.\"}"
       ]
     }
   },
-  "runtime": {"max_anchor_steps": 8, "max_decisions": 16},
+  "runtime": {
+    "max_anchor_steps": 8,
+    "max_decisions": 16
+  },
   "profiles": [
-    {"model_id":"A","unit":"synthetic_units","uncached_input":0.5,"output":1.0,"provenance":"Synthetic fixture only","synthetic":true},
-    {"model_id":"S","unit":"synthetic_units","uncached_input":0.1,"output":0.3,"provenance":"Synthetic fixture only","synthetic":true}
+    {
+      "model_id": "A",
+      "unit": "synthetic_units",
+      "uncached_input": 0.5,
+      "output": 1.0,
+      "provenance": "Synthetic fixture only",
+      "synthetic": true
+    },
+    {
+      "model_id": "S",
+      "unit": "synthetic_units",
+      "uncached_input": 0.1,
+      "output": 0.3,
+      "provenance": "Synthetic fixture only",
+      "synthetic": true
+    }
   ],
-  "observation": {"anchor_dim":12,"specialist_dim":9},
-  "policy_overhead": {"cost":0.25,"unit":"synthetic_units","provenance":"Synthetic fixture only"}
+  "observation": {
+    "anchor_dim": 12,
+    "specialist_dim": 9
+  },
+  "policy_overhead": {
+    "cost": 0.25,
+    "unit": "synthetic_units",
+    "provenance": "Synthetic fixture only"
+  }
 }

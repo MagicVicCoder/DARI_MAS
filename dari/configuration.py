@@ -160,8 +160,8 @@ def make_policy(runtime: Runtime, config: dict, checkpoint: str | Path | None = 
     checkpoint = checkpoint or config.get("controller_checkpoint")
     if checkpoint:
         saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
-        if saved.get("config", {}).get("schema_version") != 2:
-            raise ValueError("Legacy Controller checkpoint is incompatible with dynamic assistance v2")
+        if saved.get("config", {}).get("schema_version") != 3:
+            raise ValueError("Legacy Controller checkpoint is incompatible with plain-text draft protocol v3")
         metadata = saved["data_metadata"]
         same_deployment = metadata["deployment_id"] == deployment_id(runtime)
         permitted_phi_update = (allow_specialist_update and metadata.get("base_deployment_id") == deployment_id(runtime, False))

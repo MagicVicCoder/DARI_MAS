@@ -93,8 +93,7 @@ def collect_specialist(runtime: Runtime, prefix, action: Action, policy, evaluat
         try:
             record = SpecialistRecord.parse(sampled.text)
             valid = (sampled.usage.output_tokens <= request.max_new_tokens and
-                     record.draft.target == metadata["target"] and
-                     runtime.backend.count_text_tokens(request.model_id, record.draft.to_json()) <= runtime.config.draft_limit)
+                     runtime.backend.count_text_tokens(request.model_id, record.draft.text) <= runtime.config.draft_limit)
         except ValueError:
             valid = False
         if valid:

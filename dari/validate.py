@@ -103,7 +103,7 @@ def validate(config_path, output, limit=None, train=False, start_index=0):
         torch.cuda.empty_cache()
         chosen = json.loads(training_row["response"])
         rejected = json.loads(training_row["response"])
-        rejected["draft"]["finding"] = "An alternative unverified finding for loss-interface smoke testing."
+        rejected["draft"] = "An alternative unverified finding for loss-interface smoke testing."
         preference = {"input_id": training_row["input_id"], "prompt": training_row["prompt"],
             "chosen": json.dumps(chosen), "rejected": json.dumps(rejected), "synthetic": True,
             "label_source": "synthetic_pair_for_gradient_smoke_only_no_receiver_utility_claim"}

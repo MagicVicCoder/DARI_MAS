@@ -1,0 +1,70 @@
+{
+  "protocol_version": "phase2a-v3-exact-fields-complete-answer",
+  "seed": 20261124,
+  "calibration_confirmed": false,
+  "output_dir": "outputs/phase2a",
+  "sample_file": "outputs/phase2a/samples.jsonl",
+  "checkpoint_selection": "first_valid_unfinished_with_all_four_actions_feasible",
+  "continuation_steps": 8,
+  "standard_output": 4096,
+  "context_width": "narrow",
+  "robustness_checkpoints": 8,
+  "rollout_repeats": 2,
+  "runtime": {
+    "experiment_mode": "real_debug",
+    "budget": 10000000,
+    "reference_cost": 1000,
+    "anchor_output": 512,
+    "max_anchor_steps": 8,
+    "max_decisions": 64,
+    "max_specialist_stages": 1,
+    "stage_output_budgets": [
+      512
+    ],
+    "draft_limit": 192,
+    "specialist_input_limit": 20000,
+    "oneshot_output": 512
+  },
+  "backend": {
+    "type": "hf",
+    "models": {
+      "A": {
+        "name_or_path": "/data/models/Qwen3-8B",
+        "dtype": "bfloat16",
+        "enable_thinking": false,
+        "temperature": 0.0,
+        "context_limit": 32768,
+        "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+        "device": "cuda:0"
+      },
+      "S": {
+        "name_or_path": "/data/models/Qwen3-8B",
+        "dtype": "bfloat16",
+        "enable_thinking": false,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "context_limit": 32768,
+        "deployment_revision": "sha256:39d9d997762714f7896f5c9c2a4f8022927af78987925c43351da4a06b21de03",
+        "device": "cuda:1"
+      }
+    }
+  },
+  "profiles": [
+    {
+      "model_id": "A",
+      "unit": "debug_token_units",
+      "uncached_input": 1,
+      "output": 1,
+      "provenance": "Uncalibrated debug scheduling proxy only",
+      "synthetic": false
+    },
+    {
+      "model_id": "S",
+      "unit": "debug_token_units",
+      "uncached_input": 1,
+      "output": 1,
+      "provenance": "Uncalibrated debug scheduling proxy only",
+      "synthetic": false
+    }
+  ]
+}
