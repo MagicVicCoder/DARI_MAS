@@ -29,6 +29,14 @@ select the Controller checkpoint. A failed calibration triggers the reward-only
 objective with zero utility cost weight. The main collection covers Narrow Short
 Help and up to two Specialist stages.
 
+Phase 3A estimates future cost using elapsed serial execution time, with separate
+Anchor and Specialist deployment profiles for admission and observed call times for
+branch labels. The label subtracts the shared prefix ledger and normalizes by
+10 seconds. Fixed downstream decisions are timed. Independent development tasks
+select the Controller checkpoint. A failed calibration triggers the reward-only
+objective with zero utility cost weight. The main collection covers Narrow Short
+Help and up to two Specialist stages.
+
 Anchor owns the global chain. Its checkpoint includes step, existing refs, optional
 goal, dynamic help request, candidate and explicit invalidation. Runtime allocates
 s/g/h IDs and resolves current_step. History appends; invalidation precedes answer
