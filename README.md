@@ -84,11 +84,32 @@ configuration/data. Formal costs require measured profiles, policy overhead and
 
 ## Evidence and maintenance
 
+Phase 3A uses frozen base Qwen3-8B for both roles and fits the existing
+dual-value Controller offline. The experiment stores profiling, paired snapshots,
+development metrics and closed-loop traces in `outputs/phase3a/`.
+Run on the same four-device placement for calibration and generation:
+
+```bash
+python -m dari.phase3a_cost
+python -m dari.phase3a collect --stop 9
+python -m dari.phase3a_audit
+python -m dari.phase3a collect --start 9 --stop 36
+python -m dari.phase3a collect --split dev --stop 12
+python -m dari.phase3a_audit
+python -m dari.phase3a_train
+python -m dari.phase3a closed --stop 12
+python -m dari.phase3a_report
+```
+
+Completed rollout snapshots are reused when collection restarts with the same
+experiment identity. Calibration must be rerun for a different placement in a new
+experiment directory. See the phase report for executed sample counts.
+
 See [method](docs/METHOD.md), [model interface](docs/MODEL_INTERFACE.md),
-[phase report](outputs/phase1/phase1_report.md) and [maintenance rules](AGENTS.md).
+[phase report](experiments/phase1/phase1_report.md) and [maintenance rules](AGENTS.md).
 Original tests/commit: `outputs/baseline/`; real traces/adapters:
 `outputs/qwen3/`; synthetic Controller: `outputs/synthetic/`.
-Artifacts are ignored by Git and must be archived separately. Historical SFT
+Raw run outputs, caches, and weights are ignored by Git. Published evidence lives in experiments/ Historical SFT
 examples are synthetic fixtures, not a replacement for dynamic-task training data.
 
 ## Phase 2A exploratory E0/E1
@@ -225,3 +246,57 @@ improves without demonstrated collaboration improvement. See the Phase 2B report
 for format artifacts, exactness effects and restricted synthetic data coverage.
 The trained adapter remains local at `outputs/phase2b/adapter`. Training replay
 uses `python -m dari.phase2b_train` and refuses to overwrite this valid adapter.
+
+The Phase 3A closed-loop watcher (`scripts/wait_phase3a_closed.sh`) polls all GPUs
+and starts on four cards with at least 12 GiB free and at most 10% utilization.
+On this server all eight cards have the same model. The original calibration
+was measured on physical GPUs 0, 1, 2 and 6. Each closed-loop result records its
+physical GPU assignment so elapsed time can be interpreted with placement in view.
+## Phase 3B collaboration experiments
+
+Run the historical export with `python -m dari.phase3b_history`. Run the paired
+screen with `CUDA_VISIBLE_DEVICES=2,6,7 python -m dari.phase3b`.
+The screen places Anchor on one device and shards Specialist over the other two.
+Results and complete branch traces accumulate in `outputs/phase3b_collaboration/`.
+
+Run `CUDA_VISIBLE_DEVICES=1,3 python -m dari.phase3b_receiver` in parallel
+to replay saved Phase 3A development drafts. This worker loads only Anchor,
+sharded across two GPUs, and records its placement in
+`integration_history/manifest.json`. Compare rewards within each saved state.
+Elapsed times are descriptive under concurrent GPU load.
+
+The Phase 3B supplement uses `python -m dari.phase3b --supplement matched_sampling`
+to replay screening prefixes with greedy decoding in both roles. Use
+`python -m dari.phase3b --supplement combined_validation` for a new 24-task pool
+with paired Directed, Autonomous Independent, Critical Integration, and internal
+controls. Each supplement records its own manifest and resumable results.
+## Challenging benchmarks
+
+`python -m dari.challenging prepare` records seeded samples and dataset hashes
+for MATH-500, HotpotQA, HumanEval+ v0.1.10 and the pinned LiveCodeBench test6 shard.
+Run `python -m dari.challenging math500 --limit 3` for the initial compatibility
+check, with four visible GPUs in the configured logical order. The same command
+accepts `hotpotqa`, `humaneval` and `livecodebench`. Results and prompts are written
+under `outputs/phase3b_collaboration/challenging_benchmarks/`. Run
+`python -m dari.challenging summarize` for sample counts, checkpoint coverage and
+available scores. The scoring launcher writes official grades alongside the
+generation records.
+
+With enough free memory for one BF16 Qwen3-8B instance on each of two
+visible GPUs, pass `--two-devices`. This writes a separate deployment
+manifest and resumes from the existing per-task results.
+
+For single GPU inference, `--shared-base` loads one frozen BF16 model with
+separate role sampling settings. Each generation starts with an empty KV cache.
+The placement and sharing choice are recorded in `manifest_shared_base.json`.
+
+### Offline code scoring
+
+Install EvalPlus 0.3.1 in `.work/evaldeps` with
+`python -m pip install --target .work/evaldeps evalplus==0.3.1`.
+Check out LiveCodeBench commit `28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24`
+under `.work/lcb-pinned`. With Bubblewrap and system Python 3.10, run
+`python scripts/score_challenging.py humaneval` and
+`python scripts/score_challenging.py livecodebench`. Each command consumes
+saved generations and writes official scores. The release evidence is in
+[experiments](experiments/).

@@ -16,6 +16,15 @@ CONTINUE_INSTRUCTION = "Continue reasoning."
 SUBMIT_INSTRUCTION = "Use the fallible local help if useful, then continue."
 
 
+def runtime_identity(config):
+    values = asdict(config)
+    for key, default in (("specialist_role", "directed"), ("specialist_context", "guided"),
+                         ("integration_mode", "direct")):
+        if values[key] == default:
+            del values[key]
+    return values
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     anchor_model: str = "A"
@@ -35,8 +44,17 @@ class RuntimeConfig:
     experiment_mode: str = "synthetic"
     generate_help_request: bool = True
     repair_protocol_json: bool = False
+    specialist_role: str = "directed"
+    specialist_context: str = "guided"
+    integration_mode: str = "direct"
 
     def __post_init__(self):
+        if self.specialist_role not in {"directed", "check", "recompute", "autonomous", "solver"}:
+            raise ValueError("Invalid Specialist role")
+        if self.specialist_context not in {"guided", "independent", "compare"}:
+            raise ValueError("Invalid Specialist context")
+        if self.integration_mode not in {"direct", "critical", "comparison"}:
+            raise ValueError("Invalid integration mode")
         if self.experiment_mode not in {"synthetic", "real_debug", "formal"}:
             raise ValueError("Invalid experiment mode")
         if self.max_specialist_stages < 1 or len(self.stage_output_budgets) < self.max_specialist_stages or any(type(n) is not int or n <= 0 for n in self.stage_output_budgets):
@@ -164,6 +182,11 @@ class Runtime:
                          "anchor_reasoning_context", key): key for key in pack.span_ids})
         prompt = encode_with_spans(body, tracked, instruction)
         requested = {i: selected[i] for i in pack.span_ids}
+        if self.config.specialist_role != "directed" or self.config.specialist_context != "guided":
+            from .collaboration_modes import configure_specialist
+            instruction, tracked, requested = configure_specialist(
+                self.config, state, body, instruction, tracked, requested)
+            prompt = encode_with_spans(body, tracked, instruction)
         requested["task"] = state.task.question
         return GenerationRequest(self.config.specialist_model, "specialist", prompt.text, cap,
                                  state.calls["specialist"], requested, state.seed, prompt.feature_spans)
@@ -394,7 +417,12 @@ class Runtime:
                                          "stages": session.stage, "submitted": payload is not None})
             state.help = None
             state.features = {k: v for k, v in state.features.items() if not k.startswith("helper_")}
-            self._anchor(state, SUBMIT_INSTRUCTION if payload else CONTINUE_INSTRUCTION, payload, feature)
+            instruction = SUBMIT_INSTRUCTION if payload else CONTINUE_INSTRUCTION
+            if payload and self.config.integration_mode == "critical":
+                instruction += " Check the draft against the original evidence. Adopt, correct or reject its substantive claims."
+            elif payload and self.config.integration_mode == "comparison":
+                instruction += " Compare the draft with your current conclusion. Resolve substantive conflicts using the original evidence."
+            self._anchor(state, instruction, payload, feature)
         if not state.terminal and state.decisions >= self.config.max_decisions:
             self._terminate(state, "decision_limit")
         return state

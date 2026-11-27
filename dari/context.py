@@ -127,6 +127,9 @@ def anchor_input(state: "EpisodeState", instruction: str, temporary_help: tuple[
                  "A proposal does not require external help. goal is the unresolved question; instruction specifies useful work to solve it. "
                  "Avoid generic checking if a specific calculation, relation, alternative or evidence issue exists. "
                  "Use null when solved or when no meaningful local task exists. Never request a task already completed in history. ")
+    if state.task.task_id.startswith(("HumanEval/", "LiveCodeBench/")):
+        rule += (" For this programming task, the final answer must contain the entire executable Python "
+                 "program following the task's input and output contract. Encode line breaks inside the JSON string.")
     tracked = {("task",): "task", ("candidate",): "candidate"}
     tracked.update({("sources", key): key for key in state.task.sources})
     tracked.update({("evidence", key): key for key in state.artifacts})

@@ -1,5 +1,13 @@
 # DARI-MAS V1 method
 
+Phase 3A estimates future cost using elapsed serial execution time, with separate
+Anchor and Specialist deployment profiles for admission and observed call times for
+branch labels. The label subtracts the shared prefix ledger and normalizes by
+10 seconds. Fixed downstream decisions are timed. Independent development tasks
+select the Controller checkpoint. A failed calibration triggers the reward-only
+objective with zero utility cost weight. The main collection covers Narrow Short
+Help and up to two Specialist stages.
+
 Anchor owns the global chain. Its checkpoint includes step, existing refs, optional
 goal, dynamic help request, candidate and explicit invalidation. Runtime allocates
 s/g/h IDs and resolves current_step. History appends; invalidation precedes answer
@@ -141,3 +149,12 @@ communication selection. No Controller or receiver-driven optimization is justif
 by these results alone. The next diagnostic should improve independent, diverse,
 verified local-task supervision and test copying/context sensitivity before formal
 utility training, preserving this negative result rather than tuning on its cases.
+Phase 3B adds optional fixed checking, local recomputation, autonomous local help,
+and whole-task independent solving. Context and receiver instructions are varied
+independently. The independent context carries all original evidence and the
+dynamic request, which can itself disclose earlier conclusions. The compare mode
+first hides Anchor reasoning and then reveals it to the second stage.
+The challenging benchmark pilot shares an unfinished Anchor prefix for
+SelfRepair, extended repair, internal restart and Dynamic-Directed Help.
+Internal restart uses Anchor decoding on a separate local prompt containing the
+original task, evidence and dynamic request. Each branch records actual usage.

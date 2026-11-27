@@ -1,0 +1,151 @@
+{
+  "task_id": "gsm8k:660",
+  "dataset": "gsm8k",
+  "question": "Lee rears only sheep and geese on his farm.  If the total number of animal legs is 70, and the total number of animal heads is 20, how many sheep live on Lee's farm?",
+  "prefix_id": "3d9975b8b45e4066dada288d3fcb4dcc60f5bf448041f227382a45dc7b91d529",
+  "seed": 20261135,
+  "condition": "repair",
+  "score": {
+    "reward": 1.0,
+    "f1": null,
+    "extracted": "15",
+    "evaluator_status": "scored"
+  },
+  "answer": "15",
+  "future_ms": 11570.731924963186,
+  "metrics": {
+    "tokens_by_model": {
+      "A": {
+        "input": 644,
+        "output": 198,
+        "calls": 1,
+        "cached_input": 0
+      }
+    },
+    "termination_reason": "finish",
+    "format_failures": 0,
+    "first_format_failure": false,
+    "invalid_call_rate": 0.0,
+    "no_answer": false,
+    "reasoning_steps": 1,
+    "request_count": 1,
+    "request_repeated": 0,
+    "request_similar": 0,
+    "cost_complete": false,
+    "budget_exceeded": false
+  },
+  "trace": {
+    "events": [
+      {
+        "role": "anchor",
+        "prompt": "Return one JSON object: step (new reasoning text), refs (at most 4 existing IDs), goal (active subgoal or null), answer (complete answer as a JSON string or null, never a number or boolean), help_request (null or {instruction: an open-ended local task, target: current_step or an existing ID, required_refs: existing IDs}), invalidate_answer (boolean; true revokes an obsolete candidate before applying answer). Make substantive new progress each step; do not merely restate plans or repeat calculations. When solved, set answer to the concise final result, not an explanation; use standard LaTeX for mathematical expressions. The answer string must contain the final value itself, not a JSON object or an encoded JSON document. Set answer ONLY when the ORIGINAL QUESTION is fully solved; intermediate results belong in step with answer=null. Do not emit id or any other extra fields: history IDs are assigned by Runtime, not by you. Use refs=[] if citing no provided ID; never invent numeric references such as '1'. If unfinished, solve a concrete part now. Use only existing source IDs. Request help only for a genuinely unresolved task; do not repeat an already completed request. External help is fallible. Reference its ID only if retaining its evidence. Reason naturally about the ORIGINAL QUESTION. Each checkpoint may contain several connected deductions; actually calculate or infer a result, rather than outputting a plan. Check previous conclusions against the original evidence. If solved, answer the complete original question now; do not leave a solved result only in step. Use plain notation or properly double-escaped JSON backslashes. If unfinished, propose a concrete unresolved local reasoning task in help_request whenever one can be identified. This is only a proposal; Controller decides whether any assistance is invoked. A proposal does not require external help. goal is the unresolved question; instruction specifies useful work to solve it. Avoid generic checking if a specific calculation, relation, alternative or evidence issue exists. Use null when solved or when no meaningful local task exists. Never request a task already completed in history. Address this local reasoning task yourself before continuing: Solve the system of equations $ s + g = 20 $ and $ 4s + 2g = 70 $ to find the number of sheep.\n{\"task\": \"Lee rears only sheep and geese on his farm.  If the total number of animal legs is 70, and the total number of animal heads is 20, how many sheep live on Lee's farm?\", \"sources\": {}, \"steps\": [{\"id\": \"s1\", \"step\": \"Let the number of sheep be $ s $ and the number of geese be $ g $. Each sheep has 4 legs and 1 head, and each goose has 2 legs and 1 head. The total number of heads is $ s + g = 20 $, and the total number of legs is $ 4s + 2g = 70 $. We can solve these equations to find the number of sheep.\", \"refs\": []}], \"evidence\": {}, \"candidate\": null}",
+        "output": "{\"step\": \"We start by solving the system of equations $ s + g = 20 $ and $ 4s + 2g = 70 $. From the first equation, we can express $ g $ as $ g = 20 - s $. Substituting this into the second equation gives $ 4s + 2(20 - s) = 70 $. Simplifying this, we get $ 4s + 40 - 2s = 70 $, which reduces to $ 2s + 40 = 70 $. Solving for $ s $, we subtract 40 from both sides to get $ 2s = 30 $, and then divide by 2 to find $ s = 15 $.\", \"refs\": [\"s1\"], \"goal\": null, \"answer\": \"15\", \"help_request\": null, \"invalidate_answer\": false}",
+        "valid": true,
+        "error": null,
+        "usage": {
+          "model_id": "A",
+          "input_tokens": 644,
+          "output_tokens": 198,
+          "cached_input_tokens": 0,
+          "context_tokens": 644,
+          "observed_cost": 11570.731924963184,
+          "observed_unit": "serial_execution_ms"
+        },
+        "latency_ms": 11565.796299022622,
+        "raw_output": "{\"step\": \"We start by solving the system of equations $ s + g = 20 $ and $ 4s + 2g = 70 $. From the first equation, we can express $ g $ as $ g = 20 - s $. Substituting this into the second equation gives $ 4s + 2(20 - s) = 70 $. Simplifying this, we get $ 4s + 40 - 2s = 70 $, which reduces to $ 2s + 40 = 70 $. Solving for $ s $, we subtract 40 from both sides to get $ 2s = 30 $, and then divide by 2 to find $ s = 15 $.\", \"refs\": [\"s1\"], \"goal\": null, \"answer\": \"15\", \"help_request\": null, \"invalidate_answer\": false}"
+      }
+    ],
+    "steps": [
+      {
+        "step_id": "s1",
+        "record": {
+          "step": "Let the number of sheep be $ s $ and the number of geese be $ g $. Each sheep has 4 legs and 1 head, and each goose has 2 legs and 1 head. The total number of heads is $ s + g = 20 $, and the total number of legs is $ 4s + 2g = 70 $. We can solve these equations to find the number of sheep.",
+          "refs": [],
+          "goal": "Find the number of sheep on Lee's farm.",
+          "answer": null,
+          "help_request": {
+            "instruction": "Solve the system of equations $ s + g = 20 $ and $ 4s + 2g = 70 $ to find the number of sheep.",
+            "target": "s1",
+            "required_refs": [],
+            "fallback": false,
+            "reason": null
+          },
+          "invalidate_answer": false
+        }
+      },
+      {
+        "step_id": "s2",
+        "record": {
+          "step": "We start by solving the system of equations $ s + g = 20 $ and $ 4s + 2g = 70 $. From the first equation, we can express $ g $ as $ g = 20 - s $. Substituting this into the second equation gives $ 4s + 2(20 - s) = 70 $. Simplifying this, we get $ 4s + 40 - 2s = 70 $, which reduces to $ 2s + 40 = 70 $. Solving for $ s $, we subtract 40 from both sides to get $ 2s = 30 $, and then divide by 2 to find $ s = 15 $.",
+          "refs": [
+            "s1"
+          ],
+          "goal": null,
+          "answer": "15",
+          "help_request": null,
+          "invalidate_answer": false
+        }
+      }
+    ],
+    "decisions": [
+      {
+        "legal_actions": [
+          "finish||||",
+          "continue||||",
+          "self_repair||||",
+          "help|s2||narrow|short",
+          "help|s2||narrow|oneshot",
+          "help|s2||wide|short",
+          "help|s2||wide|oneshot"
+        ],
+        "selected_action": "finish||||",
+        "phase": "anchor",
+        "remaining": 214835.2482927746,
+        "help_request": {
+          "instruction": "Identify potential errors, omissions, or unresolved issues in the current reasoning and provide useful assistance.",
+          "target": "s2",
+          "required_refs": [
+            "s1"
+          ],
+          "fallback": true,
+          "reason": "anchor_help_request_null_or_missing"
+        },
+        "feature_sources": {
+          "task": {
+            "source": "anchor",
+            "dimension": 4096
+          },
+          "s1": {
+            "source": "anchor",
+            "dimension": 4096
+          },
+          "g1": {
+            "source": "anchor",
+            "dimension": 4096
+          },
+          "candidate": {
+            "source": "anchor",
+            "dimension": 4096
+          },
+          "s2": {
+            "source": "anchor",
+            "dimension": 4096
+          }
+        },
+        "action_scores": null,
+        "policy": "function"
+      }
+    ],
+    "assistance": [],
+    "retained_assistance": {},
+    "help_request": {
+      "instruction": "Identify potential errors, omissions, or unresolved issues in the current reasoning and provide useful assistance.",
+      "target": "s2",
+      "required_refs": [
+        "s1"
+      ],
+      "fallback": true,
+      "reason": "anchor_help_request_null_or_missing"
+    }
+  }
+}

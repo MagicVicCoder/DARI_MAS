@@ -99,3 +99,12 @@ on the same S object; only A remains an independent original frozen object.
 Training allocator peaks were recorded; inference allocator peaks were not exported
 and must not be inferred from shared GPU snapshots. See per-model raw token/call/
 latency logs and the report's resource limitation before making cost claims.
+Phase 3A wraps the HF backend to record synchronized elapsed call milliseconds as
+`Usage.observed_cost` with unit `serial_execution_ms`. Optional HF forward timing
+records prefill and decode separately during profiling. Allocator peak and forward
+timings are diagnostics. The ledger uses the observed cost where available and the
+fitted deployment profile for budget estimates.
+Phase 3B configures `specialist_role`, `specialist_context`, and
+`integration_mode` in RuntimeConfig. The default directed, guided, direct
+combination retains the original prompts and deployment identity. All modes
+share the same work/draft response schema.

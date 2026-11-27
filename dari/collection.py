@@ -13,7 +13,7 @@ from typing import Callable, Sequence
 
 from .controller import encode_state_actions
 from .evaluation import Evaluator
-from .runtime import EpisodeState, Runtime
+from .runtime import EpisodeState, Runtime, runtime_identity
 from .schema import Action, Kind
 
 
@@ -42,7 +42,7 @@ def deployment_id(runtime: Runtime, include_specialist_adapter: bool = True) -> 
     identity = deepcopy(runtime.backend.deployment_identity)
     if not include_specialist_adapter:
         identity.get("adapters", {}).pop(runtime.config.specialist_model, None)
-    encoded = json.dumps({"config": asdict(runtime.config),
+    encoded = json.dumps({"config": runtime_identity(runtime.config),
         "profiles": {k: asdict(v) for k, v in runtime.profiles.items()}, "backend": identity}, sort_keys=True)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -50,8 +50,9 @@ def deployment_id(runtime: Runtime, include_specialist_adapter: bool = True) -> 
 def collect_branches(runtime: Runtime, prefix: EpisodeState, actions: Sequence[Action],
                      policy: Callable, evaluator: Evaluator, gold: str, repeats: int,
                      snapshot_id: str, anchor_dim: int, specialist_dim: int,
-                     allow_unmeasured_overhead: bool = False) -> list[ControllerTarget]:
-    if runtime.config.experiment_mode == "real_debug":
+                     allow_unmeasured_overhead: bool = False, *,
+                     rollout: Callable | None = None, reward_only: bool = False) -> list[ControllerTarget]:
+    if runtime.config.experiment_mode == "real_debug" and not reward_only:
         raise ValueError("Uncalibrated real_debug costs cannot produce formal utility labels")
     if repeats <= 0 or not snapshot_id:
         raise ValueError("Positive repeats and explicit policy/S snapshot ID required")
@@ -64,12 +65,14 @@ def collect_branches(runtime: Runtime, prefix: EpisodeState, actions: Sequence[A
     rows = []
     for action in actions:
         returns, costs = [], []
-        complete = True
+        complete = not reward_only
         for repeat in range(repeats):
             branch = deepcopy(prefix)
             branch.seed = prefix.seed + repeat
-            branch = runtime.step(branch, action)
-            terminal = runtime.run_from(branch, policy)
+            if rollout is None:
+                terminal = runtime.run_from(runtime.step(branch, action), policy)
+            else:
+                terminal = rollout(branch, action, repeat)
             complete = complete and len(terminal.ledger.unmeasured_overheads) == len(prefix.ledger.unmeasured_overheads)
             if (not allow_unmeasured_overhead and
                     len(terminal.ledger.unmeasured_overheads) > len(prefix.ledger.unmeasured_overheads)):
