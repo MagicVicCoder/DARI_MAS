@@ -1,4 +1,25 @@
-# DARI-MAS V1 method
+# DARI-MAS method
+
+Native Anchor produces unrestricted text on the original task. The host
+retains prompt IDs, context IDs, generated IDs and decoder RNG state.
+Checkpoints observe token offsets. A frontier extends from the last completed
+checkpoint or latest intervention to a paragraph, sentence or closed fenced
+block boundary. The detector rejects open fenced code and display math and
+skips assistance opportunities that exhaust the configured wait.
+
+Frontier delegation selects the current object. Native intent uses a
+conservative trailing cue heuristic with fallback to the frontier. Guided
+delegation exposes available objects and direction as action parameters.
+Explore requires a detected cue without obvious history references and hides
+supporting history. This heuristic does not prove semantic independence.
+The task packet includes original evidence and a bounded direct prefix around
+the chosen object. Specialist generates private work and a draft in one call.
+Expand retains the original task and valid private stages. Abort drops the
+session. Submit appends a labeled, escaped draft at the observed safe boundary.
+SelfRepair appends a separate correction instruction. Final extraction after
+an intervention uses Anchor text generated after the injection.
+
+## Historical method
 
 Phase 3A estimates future cost using elapsed serial execution time, with separate
 Anchor and Specialist deployment profiles for admission and observed call times for

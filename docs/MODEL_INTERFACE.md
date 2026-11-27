@@ -108,3 +108,17 @@ Phase 3B configures `specialist_role`, `specialist_context`, and
 `integration_mode` in RuntimeConfig. The default directed, guided, direct
 combination retains the original prompts and deployment identity. All modes
 share the same work/draft response schema.
+# Native backend interface
+
+Native backends expose prompt tokenization, raw text encoding, decoding,
+context limits and generation from exact IDs with an explicit RNG state.
+The HF implementation uses a local sampling generator and replays the
+prefix at the next chunk. Its hidden vector is the last consumed token's
+activation. Candidate and cue scoring can use frontier proxies.
+
+Trace records include model calls, initial and replay prefill time, input
+and output tokens, controller and state observation time, and injection
+spans. Specialist costs remain in the trace after Abort. Historical GPU
+profiles have not been calibrated for this generation path.
+
+## Historical interfaces

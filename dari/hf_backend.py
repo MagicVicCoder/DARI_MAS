@@ -158,6 +158,64 @@ class HuggingFaceBackend:
     def count_text_tokens(self, model_id: str, text: str) -> int:
         return self.handles[model_id].codec.count_text(text)
 
+    def native_prompt_ids(self, model_id, prompt):
+        codec = self.handles[model_id].codec
+        return codec.tokenizer.encode(codec.format(prompt), add_special_tokens=False)
+
+    def native_encode(self, model_id, text):
+        return self.handles[model_id].codec.tokenizer.encode(text, add_special_tokens=False)
+
+    def native_decode(self, model_id, ids):
+        return self.handles[model_id].codec.tokenizer.decode(
+            ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+
+    def native_limit(self, model_id):
+        return self.handles[model_id].context_limit
+
+    @torch.inference_mode()
+    def native_generate(self, model_id, ids, cap, seed, rng_state):
+        handle = self.handles[model_id]
+        device = _input_device(handle.model)
+        context = torch.tensor([ids], device=device)
+        past = None
+        tokens = []
+        generator = None
+        eos = handle.model.generation_config.eos_token_id
+        eos = set(eos if isinstance(eos, (tuple, list)) else [eos])
+        keep = "logits_to_keep" in inspect.signature(handle.model.forward).parameters
+        started = time.perf_counter()
+        prefill = None
+        for offset in range(cap):
+            options = {"logits_to_keep": 1} if keep else {}
+            result = handle.model(input_ids=context, past_key_values=past, use_cache=True,
+                attention_mask=torch.ones((1, len(ids) + offset), dtype=torch.long, device=device),
+                output_hidden_states=True, return_dict=True, **options)
+            logits = result.logits[0, -1].float()
+            if handle.temperature == 0:
+                token = int(logits.argmax())
+            else:
+                if generator is None:
+                    generator = torch.Generator(device=logits.device).manual_seed(seed)
+                    if rng_state is not None:
+                        generator.set_state(rng_state)
+                probabilities = torch.softmax(logits / handle.temperature, dim=-1)
+                probabilities, ordering = probabilities.sort(descending=True)
+                probabilities[probabilities.cumsum(0) - probabilities >= handle.top_p] = 0
+                token = int(ordering[torch.multinomial(probabilities, 1, generator=generator)])
+            if offset == 0:
+                prefill = (time.perf_counter() - started) * 1000
+            tokens.append(token)
+            if token in eos:
+                break
+            past = result.past_key_values
+            if past is None:
+                context = torch.tensor([ids + tokens], device=device)
+            else:
+                context = torch.tensor([[token]], device=device)
+        hidden = result.hidden_states[-1][0, -1].float().cpu().tolist()
+        return tokens, generator.get_state() if generator else rng_state, tokens[-1] in eos, hidden, {
+            "ms": (time.perf_counter() - started) * 1000, "prefill_ms": prefill}
+
     def generate(self, request: GenerationRequest) -> Generation:
         h = self.handles[request.model_id]
         if request.max_new_tokens <= 0:

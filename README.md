@@ -1,4 +1,40 @@
-# DARI-MAS V1: dynamic local assistance
+# DARI-MAS: native autoregressive reasoning
+
+`dari-run` defaults to native reasoning. Standard CoT and Anchor-only use
+the same token engine, prompt, sampling stream, budget and answer extraction.
+The runtime observes generation every 256 tokens by default. It waits a
+bounded number of tokens for a safe textual boundary before offering Help.
+Continue passes the exact existing token IDs to the engine. The HF backend
+replays prefill at chunk boundaries and caches within each chunk.
+
+Use the `native` configuration object to set `checkpoint_interval`,
+`boundary_wait`, `supporting_tokens`, `anchor_budget`, `specialist_budget`,
+`stage_budget`, `draft_budget` and `stages`. Set `native_policy` to
+`standard`, `anchor_only`, `help_once` or `forced`. The default policy is
+Anchor-only. Example overrides for an existing HF deployment:
+
+```json
+{
+  "reasoning_mode": "native",
+  "native": {"delegation_mode": "controller_guided", "checkpoint_interval": 256},
+  "native_policy": "forced",
+  "forced_action": {"kind": "help", "target": "current_frontier", "mode": "verify"}
+}
+```
+
+Run `python -m dari.run --config configs/local.json --tasks data/tasks.jsonl
+--output outputs/native.jsonl --trace`. Simply set `delegation_mode` to
+`frontier` (default) or `native_intent` and use `help_once` for the other
+two mechanisms. See [method](docs/METHOD.md) and [model interface](docs/MODEL_INTERFACE.md).
+
+The native controller adapter uses schema 4 and the existing dual heads.
+Historical controller checkpoints and training collectors use the JSON
+state/action schema. Native counterfactual datasets, SFT/DPO adaptation,
+alternating optimization, cost calibration and real model validation are
+pending. All experiments below describe the historical JSON runtime.
+Set `reasoning_mode: legacy_json` for the old inference CLI.
+
+## Historical JSON runtime
 
 The frozen Anchor maintains an append-only global reasoning chain and proposes
 open-ended natural-language assistance. A lightweight action-conditioned dual-value

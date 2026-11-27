@@ -12,6 +12,12 @@ from .configuration import build_runtime, evaluator_for, load_dataset, make_poli
 
 def run_dataset(config: dict, tasks: str | Path, output: str | Path,
                 evaluate: bool = False, trace: bool = False) -> list[dict]:
+    mode = config.get("reasoning_mode", "native")
+    if mode == "native":
+        from .native_cli import run_native_dataset
+        return run_native_dataset(config, tasks, output, evaluate, trace)
+    if mode != "legacy_json":
+        raise ValueError("Unknown reasoning_mode")
     records = load_dataset(tasks, require_gold=evaluate)
     runtime = build_runtime(config)
     policy = make_policy(runtime, config)
